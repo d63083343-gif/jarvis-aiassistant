@@ -512,6 +512,8 @@ function JarvisPage() {
       setMessages(nextMsgs);
       setStatus("Thinking…");
       const historyId = addHistoryQuery(userText);
+      rememberFrom(userText);
+      void persistTurn("user", userText);
 
       // Intercept image-generation requests.
       const imgPrompt = imageGenRef.current ? extractImagePrompt(userText) : null;
@@ -527,12 +529,15 @@ function JarvisPage() {
           const data = (await res.json()) as { image?: string; error?: string };
           if (!data.image) throw new Error(data.error || "No image returned");
           saveGeneratedImage(data.image, imgPrompt);
+          void saveDataUrlImage(data.image, imgPrompt);
           const reply = `Here is your image of ${imgPrompt}, sir.`;
           setMessages((m) => [
             ...m,
             { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() },
           ]);
           attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
+          void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
           await speak(reply);
@@ -555,6 +560,7 @@ function JarvisPage() {
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
+        void persistTurn("assistant", commandReply);
         setState("speaking");
         setStatus("Executing…");
         await speak(commandReply);
@@ -571,7 +577,12 @@ function JarvisPage() {
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMsgs, mode: modeRef.current }),
+        body: JSON.stringify({
+          messages: nextMsgs,
+          mode: modeRef.current,
+          persona: personaRef.current,
+          memories: memoriesRef.current,
+        }),
       });
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
@@ -587,6 +598,7 @@ function JarvisPage() {
       }
       setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
       attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
 
       setState("speaking");
       setStatus("Responding…");
@@ -620,6 +632,8 @@ function JarvisPage() {
     setState("thinking");
     setStatus("Thinking…");
     const historyId = addHistoryQuery(imageUrl ? `[image] ${userText}`.trim() : userText);
+    rememberFrom(userText);
+    void persistTurn("user", userText || "(image attached)", imageUrl ?? null);
 
     // If no image is attached, allow image-generation and command routing.
     if (!imageUrl) {
@@ -636,9 +650,12 @@ function JarvisPage() {
           const data = (await res.json()) as { image?: string; error?: string };
           if (!data.image) throw new Error(data.error || "No image returned");
           saveGeneratedImage(data.image, imgPrompt);
+          void saveDataUrlImage(data.image, imgPrompt);
           const reply = `Here is your image of ${imgPrompt}, sir.`;
           setMessages((m) => [...m, { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() }]);
           attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
+          void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
           await speak(reply);
@@ -656,6 +673,7 @@ function JarvisPage() {
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
+        void persistTurn("assistant", commandReply);
         setState("speaking");
         setStatus("Executing…");
         await speak(commandReply);
@@ -682,7 +700,12 @@ function JarvisPage() {
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, mode: modeRef.current }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          mode: modeRef.current,
+          persona: personaRef.current,
+          memories: memoriesRef.current,
+        }),
       });
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
@@ -698,6 +721,7 @@ function JarvisPage() {
       }
       setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
       attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
       setState("speaking");
       setStatus("Responding…");
       await speak(reply);
@@ -718,6 +742,7 @@ function JarvisPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: modeRef.current,
+        persona: personaRef.current,
         messages: [
           {
             role: "user",
@@ -800,6 +825,7 @@ function JarvisPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
+          persona: personaRef.current,
           speed: voiceSpeedRef.current,
           pitch: voicePitchRef.current,
         }),
