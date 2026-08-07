@@ -945,17 +945,26 @@ function JarvisPage() {
       console.warn("[jarvis] WebAudio analyser wiring failed, playing raw audio", err);
     }
 
+    let interrupted = false;
     await new Promise<void>((resolve) => {
-      audio.onended = () => resolve();
-      audio.onerror = () => resolve();
+      let settled = false;
+      const finish = () => { if (!settled) { settled = true; resolve(); } };
+      audio.onended = finish;
+      audio.onerror = finish;
+      void startBargeInMonitor(() => {
+        interrupted = true;
+        try { audio.pause(); } catch { /* noop */ }
+        finish();
+      });
       const p = audio.play();
       if (p && typeof p.catch === "function") {
         p.catch((err) => {
           console.warn("[jarvis] audio.play() blocked or failed", err);
-          resolve();
+          finish();
         });
       }
     });
+    bargeInRef.current?.();
     if (raf) cancelAnimationFrame(raf);
     setLevel(0);
     URL.revokeObjectURL(url);
@@ -966,7 +975,9 @@ function JarvisPage() {
         /* noop */
       }
     }
+    if (interrupted) setStatus("Go ahead, I'm listening…");
   };
+
 
   const busy = state === "thinking" || state === "speaking";
   const onTap = () => {
