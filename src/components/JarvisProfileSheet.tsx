@@ -20,7 +20,10 @@ import {
   ChevronRight,
   ChevronLeft,
   Mail,
+  MonitorUp,
+  HardDrive,
 } from "lucide-react";
+
 
 type Row = {
   label: string;
