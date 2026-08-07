@@ -278,9 +278,27 @@ function JarvisPage() {
     setPendingImage(null);
     setTextInput("");
     setError(null);
+    conversationIdRef.current = null;
     setStatus("New session — tap the core or type to begin");
     setState("idle");
   }, []);
+
+  // Pull persona + long-term memory from the cloud once signed in.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    void (async () => {
+      const profile = await loadProfile();
+      if (alive && profile?.persona) {
+        setPersonaState(profile.persona);
+        personaRef.current = profile.persona;
+      }
+      const mem = await listMemories();
+      if (alive) memoriesRef.current = mem.map((m) => m.content);
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
   useEffect(() => {
     let mounted = true;
     const applySession = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
