@@ -45,6 +45,26 @@ import {
   PIN_KEY,
   PIN_ENABLED_KEY,
 } from "@/components/JarvisExtras";
+import { JarvisStorageSheet } from "@/components/JarvisStorageSheet";
+import { JarvisScreenShare } from "@/components/JarvisScreenShare";
+import {
+  PERSONA_LIST,
+  resolvePersona,
+  type PersonaId,
+} from "@/lib/jarvisPersonas";
+import {
+  addMemory,
+  createConversation,
+  extractMemory,
+  listMemories,
+  loadProfile,
+  saveDataUrlImage,
+  saveMessage,
+  savePersona,
+  setConversationTitle,
+} from "@/lib/jarvisCloud";
+
+
 
 
 export const Route = createFileRoute("/")({
