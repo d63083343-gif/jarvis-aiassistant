@@ -31,13 +31,28 @@ export function JarvisLogin() {
     try {
       if (mode === "forgot-email") {
         if (!email.trim()) throw new Error("Enter your operator ID.");
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin,
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim());
+        if (err) throw err;
+        setOtp("");
+        setMode("otp");
+        setInfo("A 6-DIGIT ACCESS CODE WAS TRANSMITTED TO YOUR REGISTERED E-MAIL.");
+      } else if (mode === "otp") {
+        const code = otp.replace(/\D/g, "");
+        if (code.length !== 6) throw new Error("Enter the 6-digit access code.");
+        const { error: err } = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: code,
+          type: "recovery",
         });
         if (err) throw err;
-        setInfo(
-          "A MAGICAL LINK WAS SENT TO YOUR REGISTERD E-MAIL CLICK ON IT AND GET BACK TO YOUR ACCOUNT",
-        );
+        setPassword("");
+        setMode("new-key");
+        setInfo("CODE VERIFIED. SET A NEW ACCESS KEY.");
+      } else if (mode === "new-key") {
+        if (password.trim().length < 6) throw new Error("Access key must be at least 6 characters.");
+        const { error: err } = await supabase.auth.updateUser({ password });
+        if (err) throw err;
+        setInfo("ACCESS KEY UPDATED. WELCOME BACK, SIR.");
       } else if (mode === "signup") {
         if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
         const { error: err } = await supabase.auth.signUp({
