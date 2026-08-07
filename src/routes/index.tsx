@@ -33,6 +33,8 @@ import {
   type Plugins,
 } from "@/components/JarvisWorkspace";
 import { Switch } from "@/components/ui/switch";
+import { AutomationCard } from "@/components/JarvisAutomationCard";
+import { handleNativeCommand } from "@/lib/jarvisNative";
 import { deleteMyAccount } from "@/lib/account.functions";
 import {
   PinLockGate,
@@ -458,7 +460,7 @@ function JarvisPage() {
       }
 
       // Intercept device / launcher commands (open sites, call contacts, etc.)
-      const commandReply = handleCommand(userText);
+      const commandReply = (await handleNativeCommand(userText)) ?? handleCommand(userText);
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
@@ -559,7 +561,7 @@ function JarvisPage() {
         return;
       }
 
-      const commandReply = handleCommand(userText);
+      const commandReply = (await handleNativeCommand(userText)) ?? handleCommand(userText);
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
@@ -1955,6 +1957,9 @@ function SettingsMenu({
               accent="gold"
             />
           </div>
+
+          {/* Device automation */}
+          <AutomationCard />
         </div>
       </SheetContent>
     </Sheet>
