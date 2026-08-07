@@ -261,10 +261,10 @@ export function JarvisLogin() {
                 />
               )}
             </button>
-            {mode === "forgot-email" ? (
+            {mode === "forgot-email" || mode === "otp" || mode === "new-key" ? (
               <button
                 type="button"
-                onClick={() => { resetTransientState(); setMode("signin"); }}
+                onClick={() => { resetTransientState(); setOtp(""); setPassword(""); setMode("signin"); }}
                 className="font-hud w-full text-center text-[10px] tracking-widest text-muted-foreground transition hover:text-[color:var(--jarvis-cyan)]"
               >
                 ◂ RETURN TO HANDSHAKE
