@@ -1168,10 +1168,21 @@ function JarvisPage() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenVoiceMode={() => setLiveVoiceOpen(true)}
         onOpenLiveVision={() => setLiveVisionOpen(true)}
+        onOpenScreenShare={() => setScreenShareOpen(true)}
+        onOpenStorage={() => setStorageOpen(true)}
         pinEnabled={pinEnabled}
         onTogglePin={() => (pinEnabled ? disablePin() : setPinSetupOpen(true))}
         onSignOut={() => { void supabase.auth.signOut(); }}
       />
+
+      <JarvisStorageSheet open={storageOpen} onOpenChange={setStorageOpen} />
+
+      <JarvisScreenShare
+        open={screenShareOpen}
+        onClose={() => setScreenShareOpen(false)}
+        onFrame={analyzeScreen}
+      />
+
 
       <JarvisWorkspace
         view={workspaceView}
