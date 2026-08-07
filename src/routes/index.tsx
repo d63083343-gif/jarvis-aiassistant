@@ -111,7 +111,60 @@ function JarvisPage() {
   const [liveVoiceOpen, setLiveVoiceOpen] = useState(false);
   const [liveVisionOpen, setLiveVisionOpen] = useState(false);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [storageOpen, setStorageOpen] = useState(false);
+  const [screenShareOpen, setScreenShareOpen] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView | null>(null);
+
+  // ── Voice persona ────────────────────────────────────────────────────
+  const [persona, setPersonaState] = useState<PersonaId>(() => {
+    if (typeof window === "undefined") return "jarvis";
+    const v = localStorage.getItem("jarvis.persona");
+    return (["jarvis", "friday", "veronica", "edith"].includes(v ?? "") ? v : "jarvis") as PersonaId;
+  });
+  const personaRef = useRef<PersonaId>(persona);
+  const setPersona = useCallback((p: PersonaId) => {
+    setPersonaState(p);
+    personaRef.current = p;
+    try { localStorage.setItem("jarvis.persona", p); } catch { /* noop */ }
+    void savePersona(p);
+  }, []);
+  useEffect(() => { personaRef.current = persona; }, [persona]);
+
+  // ── Wake word ("Hey JARVIS") ─────────────────────────────────────────
+  const [wakeWord, setWakeWord] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("jarvis.wakeWord") !== "0";
+  });
+  const wakeWordRef = useRef(wakeWord);
+  useEffect(() => {
+    wakeWordRef.current = wakeWord;
+    try { localStorage.setItem("jarvis.wakeWord", wakeWord ? "1" : "0"); } catch { /* noop */ }
+  }, [wakeWord]);
+
+  // ── Persistent memory + cloud conversation ───────────────────────────
+  const memoriesRef = useRef<string[]>([]);
+  const conversationIdRef = useRef<string | null>(null);
+  const rememberFrom = useCallback((text: string) => {
+    const fact = extractMemory(text);
+    if (!fact || memoriesRef.current.includes(fact)) return;
+    memoriesRef.current = [fact, ...memoriesRef.current].slice(0, 60);
+    void addMemory(fact);
+  }, []);
+  const persistTurn = useCallback(
+    async (role: "user" | "assistant", content: string, imageUrl?: string | null) => {
+      if (incognitoRef.current) return;
+      try {
+        if (!conversationIdRef.current) {
+          conversationIdRef.current = await createConversation(content.slice(0, 60));
+        }
+        if (conversationIdRef.current) {
+          await saveMessage(conversationIdRef.current, role, content, imageUrl ?? null);
+        }
+      } catch { /* best effort */ }
+    },
+    [],
+  );
+
   const [voiceReplies, setVoiceReplies] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("jarvis.voiceReplies") !== "0";
