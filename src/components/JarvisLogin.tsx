@@ -6,6 +6,7 @@ type Mode = "signin" | "signup" | "forgot-email" | "otp" | "new-key";
 export function JarvisLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
