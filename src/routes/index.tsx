@@ -1,24 +1,2302 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { JarvisOrb } from "@/components/JarvisOrb";
+import { JarvisSplash } from "@/components/JarvisSplash";
+import { JarvisLogin } from "@/components/JarvisLogin";
+import { encodeWav } from "@/lib/wav";
+import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { startSearchingSfx, stopSearchingSfx } from "@/lib/digitalSfx";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Trash2, Search, User, LogOut, Settings as SettingsIcon, Send, X, Moon, Sun, EyeOff, Paperclip, Camera, Image as ImageIcon, FileText, AlertTriangle, Save, ChevronDown, Sparkles, Code2, Palette, AudioLines, Plus, ShieldCheck, Menu } from "lucide-react";
+import { JarvisSidebar } from "@/components/JarvisSidebar";
+import { JarvisProfileSheet } from "@/components/JarvisProfileSheet";
+import {
+  JarvisWorkspace,
+  saveGeneratedImage,
+  type WorkspaceView,
+  type Plugins,
+} from "@/components/JarvisWorkspace";
+import { Switch } from "@/components/ui/switch";
+import { deleteMyAccount } from "@/lib/account.functions";
+import {
+  PinLockGate,
+  PinSetupDialog,
+  LiveVoiceOverlay,
+  LiveVisionOverlay,
+  WaveformRing,
+  PIN_KEY,
+  PIN_ENABLED_KEY,
+} from "@/components/JarvisExtras";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: JarvisPage,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+type Msg = { role: "user" | "assistant"; content: string; ts: number; imageUrl?: string };
+type State = "idle" | "listening" | "thinking" | "speaking";
+type HistoryItem = { id: string; query: string; reply?: string; title?: string; ts: number };
+const HISTORY_KEY = "jarvis.history";
+const MAX_HISTORY = 100;
+
+function JarvisPage() {
+  const [state, setState] = useState<State>("idle");
+  const [level, setLevel] = useState(0);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [status, setStatus] = useState("Tap the core to begin");
+  const [error, setError] = useState<string | null>(null);
+  const [handsFree, setHandsFree] = useState(true);
+  const [voiceSpeed, setVoiceSpeed] = useState<number>(() => {
+    if (typeof window === "undefined") return 0.95;
+    const v = parseFloat(localStorage.getItem("jarvis.speed") ?? "");
+    return Number.isFinite(v) ? Math.min(1.3, Math.max(0.7, v)) : 0.95;
+  });
+  const [voicePitch, setVoicePitch] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const v = parseInt(localStorage.getItem("jarvis.pitch") ?? "", 10);
+    return Number.isFinite(v) ? Math.min(3, Math.max(-3, v)) : 0;
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string; avatarUrl?: string | null } | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [textInput, setTextInput] = useState("");
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
+  const [pinEnabled, setPinEnabled] = useState(false);
+  const [pinChecked, setPinChecked] = useState(false);
+  const [pinUnlocked, setPinUnlocked] = useState<boolean>(false);
+  const [pinSetupOpen, setPinSetupOpen] = useState(false);
+  const [liveVoiceOpen, setLiveVoiceOpen] = useState(false);
+  const [liveVisionOpen, setLiveVisionOpen] = useState(false);
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView | null>(null);
+  const [voiceReplies, setVoiceReplies] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("jarvis.voiceReplies") !== "0";
+  });
+  const [imageGen, setImageGen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("jarvis.imageGen") !== "0";
+  });
+  const voiceRepliesRef = useRef(voiceReplies);
+  const imageGenRef = useRef(imageGen);
+  useEffect(() => {
+    voiceRepliesRef.current = voiceReplies;
+    try { localStorage.setItem("jarvis.voiceReplies", voiceReplies ? "1" : "0"); } catch { /* noop */ }
+  }, [voiceReplies]);
+  useEffect(() => {
+    imageGenRef.current = imageGen;
+    try { localStorage.setItem("jarvis.imageGen", imageGen ? "1" : "0"); } catch { /* noop */ }
+  }, [imageGen]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let on = false;
+    try {
+      on = localStorage.getItem(PIN_ENABLED_KEY) === "1" && !!localStorage.getItem(PIN_KEY);
+    } catch { /* noop */ }
+    setPinEnabled(on);
+    setPinUnlocked(!on);
+    setPinChecked(true);
+  }, []);
+
+  const [mode, setMode] = useState<"general" | "developer" | "creative">(() => {
+    if (typeof window === "undefined") return "general";
+    const v = localStorage.getItem("jarvis.mode");
+    return v === "developer" || v === "creative" ? v : "general";
+  });
+  const modeRef = useRef<"general" | "developer" | "creative">(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+    try { localStorage.setItem("jarvis.mode", mode); } catch { /* noop */ }
+  }, [mode]);
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    return (localStorage.getItem("jarvis.theme") as "dark" | "light") || "dark";
+  });
+  const [incognito, setIncognito] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("jarvis.incognito") === "1";
+  });
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle("light", theme === "light");
+    try { localStorage.setItem("jarvis.theme", theme); } catch { /* noop */ }
+  }, [theme]);
+  useEffect(() => {
+    try { localStorage.setItem("jarvis.incognito", incognito ? "1" : "0"); } catch { /* noop */ }
+  }, [incognito]);
+  const incognitoRef = useRef(incognito);
+  useEffect(() => { incognitoRef.current = incognito; }, [incognito]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      if (raw) setHistory(JSON.parse(raw) as HistoryItem[]);
+    } catch { /* noop */ }
+  }, []);
+  const persistHistory = useCallback((next: HistoryItem[]) => {
+    setHistory(next);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch { /* noop */ }
+  }, []);
+  const historyRef = useRef<HistoryItem[]>([]);
+  useEffect(() => { historyRef.current = history; }, [history]);
+  const addHistoryQuery = useCallback((query: string) => {
+    const item: HistoryItem = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      query,
+      ts: Date.now(),
+    };
+    if (incognitoRef.current) return item.id;
+    persistHistory([item, ...historyRef.current].slice(0, MAX_HISTORY));
+    return item.id;
+  }, [persistHistory]);
+  const generateTitle = useCallback(async (id: string, query: string, reply?: string) => {
+    try {
+      const res = await fetch("/api/chat-title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, reply }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { title?: string };
+      const title = data.title?.trim();
+      if (!title) return;
+      persistHistory(historyRef.current.map((h) => (h.id === id ? { ...h, title } : h)));
+    } catch { /* noop */ }
+  }, [persistHistory]);
+  const attachReplyToHistory = useCallback((id: string, reply: string) => {
+    if (incognitoRef.current) return;
+    const existing = historyRef.current.find((h) => h.id === id);
+    persistHistory(historyRef.current.map((h) => (h.id === id ? { ...h, reply } : h)));
+    if (existing && !existing.title) void generateTitle(id, existing.query, reply);
+  }, [persistHistory, generateTitle]);
+  const disablePin = useCallback(() => {
+    try {
+      localStorage.removeItem(PIN_KEY);
+      localStorage.removeItem(PIN_ENABLED_KEY);
+    } catch { /* noop */ }
+    setPinEnabled(false);
+    setPinUnlocked(true);
+  }, []);
+  const startNewChat = useCallback(() => {
+    setMessages([]);
+    setPendingImage(null);
+    setTextInput("");
+    setError(null);
+    setStatus("New session — tap the core or type to begin");
+    setState("idle");
+  }, []);
+  useEffect(() => {
+    let mounted = true;
+    const applySession = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
+      if (!mounted) return;
+      if (session?.user) {
+        const email = session.user.email ?? "operator";
+        const meta = session.user.user_metadata as { full_name?: string; name?: string; avatar_url?: string } | undefined;
+        const name = meta?.full_name || meta?.name || email.split("@")[0];
+        setUser({ name, email, avatarUrl: meta?.avatar_url ?? null });
+      } else {
+        setUser(null);
+      }
+      setAuthReady(true);
+    };
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => applySession(session));
+    supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, []);
+  // Start/stop searching sound effects with the "thinking" state.
+  useEffect(() => {
+    if (state === "thinking") {
+      startSearchingSfx();
+    } else {
+      stopSearchingSfx();
+    }
+    return () => stopSearchingSfx();
+  }, [state]);
+
+  const voiceSpeedRef = useRef(voiceSpeed);
+  const voicePitchRef = useRef(voicePitch);
+  useEffect(() => {
+    voiceSpeedRef.current = voiceSpeed;
+    if (typeof window !== "undefined") localStorage.setItem("jarvis.speed", String(voiceSpeed));
+  }, [voiceSpeed]);
+  useEffect(() => {
+    voicePitchRef.current = voicePitch;
+    if (typeof window !== "undefined") localStorage.setItem("jarvis.pitch", String(voicePitch));
+  }, [voicePitch]);
+
+  // Recording refs
+  const ctxRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const nodeRef = useRef<ScriptProcessorNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const chunksRef = useRef<Float32Array[]>([]);
+  const rafRef = useRef<number | null>(null);
+  const messagesRef = useRef<Msg[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // VAD refs
+  const speechDetectedRef = useRef(false);
+  const silenceStartRef = useRef<number | null>(null);
+  const autoStopRef = useRef<(() => void) | null>(null);
+  const handsFreeRef = useRef(handsFree);
+  useEffect(() => {
+    handsFreeRef.current = handsFree;
+  }, [handsFree]);
+
+  // Voice-activity thresholds (tuned to ignore background noise)
+  const SPEECH_THRESHOLD = 0.14;      // must exceed to count as voice
+  const SPEECH_FRAMES_REQUIRED = 8;   // sustained frames of voice before "speaking"
+  const MIN_SPEECH_MS = 500;          // minimum voice duration to accept
+  const SILENCE_MS = 1200;
+  const MAX_RECORD_MS = 15000;
+  const IDLE_TIMEOUT_MS = 6000;       // give up if no speech detected at all
+
+  const speechFramesRef = useRef(0);
+  const speechStartRef = useRef<number | null>(null);
+
+  const stopMeter = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  };
+
+  const startMeter = (analyser: AnalyserNode) => {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const startedAt = performance.now();
+    const tick = () => {
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const lvl = Math.min(1, Math.sqrt(sum / data.length) * 3);
+      setLevel(lvl);
+
+      const now = performance.now();
+      // Voice activity detection — require sustained energy to count as speech.
+      if (lvl > SPEECH_THRESHOLD) {
+        speechFramesRef.current += 1;
+        if (speechFramesRef.current >= SPEECH_FRAMES_REQUIRED) {
+          if (!speechDetectedRef.current) {
+            speechDetectedRef.current = true;
+            speechStartRef.current = now;
+          }
+          silenceStartRef.current = null;
+        }
+      } else {
+        speechFramesRef.current = Math.max(0, speechFramesRef.current - 1);
+        if (speechDetectedRef.current) {
+          if (silenceStartRef.current == null) silenceStartRef.current = now;
+          else if (now - silenceStartRef.current > SILENCE_MS) {
+            autoStopRef.current?.();
+            return;
+          }
+        } else if (now - startedAt > IDLE_TIMEOUT_MS) {
+          // No voice detected in the initial window — abandon this session.
+          autoStopRef.current?.();
+          return;
+        }
+      }
+      if (now - startedAt > MAX_RECORD_MS && speechDetectedRef.current) {
+        autoStopRef.current?.();
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    tick();
+  };
+
+  const startListening = useCallback(async () => {
+    setError(null);
+    speechDetectedRef.current = false;
+    silenceStartRef.current = null;
+    speechFramesRef.current = 0;
+    speechStartRef.current = null;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const AC: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      ctxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyserRef.current = analyser;
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      nodeRef.current = node;
+      chunksRef.current = [];
+      node.onaudioprocess = (e) => {
+        chunksRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      };
+      source.connect(analyser);
+      source.connect(node);
+      node.connect(ctx.destination);
+      setState("listening");
+      setStatus("Listening… speak now");
+      startMeter(analyser);
+    } catch {
+      setError("Microphone access denied. Enable it in your browser.");
+      setState("idle");
+    }
+  }, []);
+
+  const stopListeningAndSend = useCallback(async () => {
+    stopMeter();
+    const hadSpeech = speechDetectedRef.current;
+    const speechDurationMs =
+      speechStartRef.current != null ? performance.now() - speechStartRef.current : 0;
+    const ctx = ctxRef.current;
+    const stream = streamRef.current;
+    const node = nodeRef.current;
+    const chunks = chunksRef.current;
+    node?.disconnect();
+    stream?.getTracks().forEach((t) => t.stop());
+    const sampleRate = ctx?.sampleRate ?? 48000;
+    await ctx?.close();
+    ctxRef.current = null;
+    streamRef.current = null;
+    nodeRef.current = null;
+    analyserRef.current = null;
+    setLevel(0);
+
+    // Reject sessions where no real voice was detected, or the voice was too short.
+    if (!chunks.length || !hadSpeech || speechDurationMs < MIN_SPEECH_MS) {
+      setState("idle");
+      setStatus(handsFreeRef.current ? "Listening for your voice…" : "Tap the core to speak");
+      if (handsFreeRef.current) setTimeout(() => void startListening(), 300);
+      return;
+    }
+    const blob = encodeWav(chunks, sampleRate);
+    if (blob.size < 2048) {
+      setState("idle");
+      setStatus("Didn't catch that.");
+      if (handsFreeRef.current) setTimeout(() => void startListening(), 400);
+      return;
+    }
+
+    setState("thinking");
+    setStatus("Transcribing…");
+    try {
+      const form = new FormData();
+      form.append("file", blob, "recording.wav");
+      const sttRes = await fetch("/api/stt", { method: "POST", body: form });
+      if (!sttRes.ok) throw new Error(`STT ${sttRes.status}`);
+      const sttData = (await sttRes.json()) as { text?: string };
+      const userText = (sttData.text ?? "").trim();
+      if (!userText) {
+        setState("idle");
+        setStatus("Didn't catch that.");
+        if (handsFreeRef.current) setTimeout(() => void startListening(), 400);
+        return;
+      }
+
+      const nextMsgs: Msg[] = [...messagesRef.current, { role: "user", content: userText, ts: Date.now() }];
+      setMessages(nextMsgs);
+      setStatus("Thinking…");
+      const historyId = addHistoryQuery(userText);
+
+      // Intercept image-generation requests.
+      const imgPrompt = imageGenRef.current ? extractImagePrompt(userText) : null;
+      if (imgPrompt) {
+        setStatus("Generating image…");
+        try {
+          const res = await fetch("/api/generate-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: imgPrompt }),
+          });
+          if (!res.ok) throw new Error(`Image ${res.status}`);
+          const data = (await res.json()) as { image?: string; error?: string };
+          if (!data.image) throw new Error(data.error || "No image returned");
+          saveGeneratedImage(data.image, imgPrompt);
+          const reply = `Here is your image of ${imgPrompt}, sir.`;
+          setMessages((m) => [
+            ...m,
+            { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() },
+          ]);
+          attachReplyToHistory(historyId, reply);
+          setState("speaking");
+          setStatus("Rendering…");
+          await speak(reply);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Image generation failed.";
+          setError(msg);
+          setMessages((m) => [
+            ...m,
+            { role: "assistant", content: `I couldn't generate that image, sir. ${msg}`, ts: Date.now() },
+          ]);
+        }
+        setState("idle");
+        if (handsFreeRef.current) { setStatus("Listening…"); void startListening(); }
+        else setStatus("Tap the core to speak");
+        return;
+      }
+
+      // Intercept device / launcher commands (open sites, call contacts, etc.)
+      const commandReply = handleCommand(userText);
+      if (commandReply) {
+        setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
+        attachReplyToHistory(historyId, commandReply);
+        setState("speaking");
+        setStatus("Executing…");
+        await speak(commandReply);
+        setState("idle");
+        if (handsFreeRef.current) {
+          setStatus("Listening…");
+          void startListening();
+        } else {
+          setStatus("Tap the core to speak");
+        }
+        return;
+      }
+
+      const chatRes = await fetch("/api/jarvis-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: nextMsgs, mode: modeRef.current }),
+      });
+      if (!chatRes.ok) {
+        if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
+        if (chatRes.status === 402) throw new Error("AI credits exhausted. Add credits in Settings.");
+        throw new Error(`Chat ${chatRes.status}`);
+      }
+      const chatData = (await chatRes.json()) as { reply?: string };
+      const reply = (chatData.reply ?? "").trim();
+      if (!reply) {
+        setState("idle");
+        setStatus("No response. Tap to try again.");
+        return;
+      }
+      setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
+      attachReplyToHistory(historyId, reply);
+
+      setState("speaking");
+      setStatus("Responding…");
+      await speak(reply);
+      setState("idle");
+      if (handsFreeRef.current) {
+        setStatus("Listening…");
+        void startListening();
+      } else {
+        setStatus("Tap the core to speak");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      setError(msg);
+      setState("idle");
+      setStatus("Tap the core to speak");
+    }
+  }, [startListening, addHistoryQuery, attachReplyToHistory]);
+
+  useEffect(() => {
+    autoStopRef.current = stopListeningAndSend;
+  }, [stopListeningAndSend]);
+
+  const sendUserMessage = useCallback(async (raw: string, imageUrl?: string) => {
+    const userText = raw.trim();
+    if (!userText && !imageUrl) return;
+    setError(null);
+    const userMsg: Msg = { role: "user", content: userText || "(image attached)", ts: Date.now(), imageUrl };
+    const nextMsgs: Msg[] = [...messagesRef.current, userMsg];
+    setMessages(nextMsgs);
+    setState("thinking");
+    setStatus("Thinking…");
+    const historyId = addHistoryQuery(imageUrl ? `[image] ${userText}`.trim() : userText);
+
+    // If no image is attached, allow image-generation and command routing.
+    if (!imageUrl) {
+      const imgPrompt = imageGenRef.current ? extractImagePrompt(userText) : null;
+      if (imgPrompt) {
+        setStatus("Generating image…");
+        try {
+          const res = await fetch("/api/generate-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: imgPrompt }),
+          });
+          if (!res.ok) throw new Error(`Image ${res.status}`);
+          const data = (await res.json()) as { image?: string; error?: string };
+          if (!data.image) throw new Error(data.error || "No image returned");
+          saveGeneratedImage(data.image, imgPrompt);
+          const reply = `Here is your image of ${imgPrompt}, sir.`;
+          setMessages((m) => [...m, { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() }]);
+          attachReplyToHistory(historyId, reply);
+          setState("speaking");
+          setStatus("Rendering…");
+          await speak(reply);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Image generation failed.";
+          setError(msg);
+          setMessages((m) => [...m, { role: "assistant", content: `I couldn't generate that image, sir. ${msg}`, ts: Date.now() }]);
+        }
+        setState("idle");
+        setStatus("Tap the core to speak");
+        return;
+      }
+
+      const commandReply = handleCommand(userText);
+      if (commandReply) {
+        setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
+        attachReplyToHistory(historyId, commandReply);
+        setState("speaking");
+        setStatus("Executing…");
+        await speak(commandReply);
+        setState("idle");
+        setStatus("Tap the core to speak");
+        return;
+      }
+    }
+
+    try {
+      // Build API payload — convert the last user message to content blocks when an image is attached.
+      const apiMessages = nextMsgs.map((m, i) => {
+        if (i === nextMsgs.length - 1 && imageUrl) {
+          return {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: userText || "What is in this image?" },
+              { type: "image_url" as const, image_url: { url: imageUrl } },
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      });
+      const chatRes = await fetch("/api/jarvis-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: apiMessages, mode: modeRef.current }),
+      });
+      if (!chatRes.ok) {
+        if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
+        if (chatRes.status === 402) throw new Error("AI credits exhausted.");
+        throw new Error(`Chat ${chatRes.status}`);
+      }
+      const chatData = (await chatRes.json()) as { reply?: string };
+      const reply = (chatData.reply ?? "").trim();
+      if (!reply) {
+        setState("idle");
+        setStatus("No response. Tap to try again.");
+        return;
+      }
+      setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
+      attachReplyToHistory(historyId, reply);
+      setState("speaking");
+      setStatus("Responding…");
+      await speak(reply);
+      setState("idle");
+      setStatus("Tap the core to speak");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      setError(msg);
+      setState("idle");
+      setStatus("Tap the core to speak");
+    }
+  }, [addHistoryQuery, attachReplyToHistory]);
+
+  // Live Vision — send a camera frame to JARVIS and speak the observation.
+  const analyzeFrame = useCallback(async (dataUrl: string) => {
+    const res = await fetch("/api/jarvis-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: modeRef.current,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "You are seeing a live camera feed. In one short spoken sentence, describe what is happening right now. If nothing changed, mention the most notable detail instead.",
+              },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Vision ${res.status}`);
+    const data = (await res.json()) as { reply?: string };
+    const reply = (data.reply ?? "").trim();
+    if (reply) {
+      try {
+        await speak(reply);
+      } catch { /* noop */ }
+    }
+    return reply;
+  }, []);
+
+
+
+
+  // NOTE: We intentionally do NOT auto-start the microphone on mount.
+  // Mobile browsers (iOS Safari, Android Chrome) require getUserMedia() and
+  // audio playback to be initiated inside a user gesture. After login we ask
+  // the user to tap the core once — from there on, hands-free chaining works
+  // because the mic permission is already granted for the session.
+
+  // Free, offline fallback voice: the browser's built-in speech synthesis.
+  // Used whenever the hosted TTS is unavailable (quota/credits/rate limits).
+  const speakWithBrowser = (text: string) =>
+    new Promise<void>((resolve) => {
+      const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+      if (!synth) return resolve();
+      try {
+        synth.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        const voices = synth.getVoices();
+        const preferred =
+          voices.find((v) => /en-GB/i.test(v.lang) && /male|daniel|arthur|george/i.test(v.name)) ||
+          voices.find((v) => /en-GB/i.test(v.lang)) ||
+          voices.find((v) => /^en/i.test(v.lang));
+        if (preferred) u.voice = preferred;
+        u.lang = preferred?.lang || "en-GB";
+        u.rate = Math.min(1.2, Math.max(0.7, voiceSpeedRef.current || 0.95));
+        u.pitch = Math.min(2, Math.max(0.4, 1 + (voicePitchRef.current || 0) * 0.15));
+        let done = false;
+        const finish = () => { if (!done) { done = true; setLevel(0); resolve(); } };
+        u.onend = finish;
+        u.onerror = finish;
+        // Crude but effective level animation while the browser voice speaks.
+        const iv = setInterval(() => setLevel(0.25 + Math.random() * 0.35), 120);
+        const clear = () => { clearInterval(iv); finish(); };
+        u.onend = clear;
+        u.onerror = clear;
+        synth.speak(u);
+      } catch {
+        resolve();
+      }
+    });
+
+  const speak = async (text: string) => {
+    if (!voiceRepliesRef.current) return;
+    // Create the Audio element BEFORE the async fetch so mobile browsers
+    // still associate playback with the recent user gesture.
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
+
+    let res: Response;
+    try {
+      res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          speed: voiceSpeedRef.current,
+          pitch: voicePitchRef.current,
+        }),
+      });
+    } catch {
+      await speakWithBrowser(text);
+      return;
+    }
+    if (!res.ok) {
+      // 402 (out of credits), 429 (rate limited), 403/404 (not enabled) and any
+      // server error fall back to the free built-in browser voice instead of
+      // surfacing an error to the user.
+      console.warn(`[jarvis] hosted TTS unavailable (${res.status}); using browser voice`);
+      await speakWithBrowser(text);
+      return;
+    }
+    const blob = await res.blob();
+    if (blob.size === 0) {
+      await speakWithBrowser(text);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    audio.src = url;
+
+    // Wire analyser for the speaking visualization. If WebAudio wiring
+    // fails (e.g. Safari cross-context issues), still play the audio.
+    let ctx: AudioContext | null = null;
+    let raf = 0;
+    try {
+      const AC: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new AC();
+      if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+      const src = ctx.createMediaElementSource(audio);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3));
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (err) {
+      console.warn("[jarvis] WebAudio analyser wiring failed, playing raw audio", err);
+    }
+
+    await new Promise<void>((resolve) => {
+      audio.onended = () => resolve();
+      audio.onerror = () => resolve();
+      const p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch((err) => {
+          console.warn("[jarvis] audio.play() blocked or failed", err);
+          resolve();
+        });
+      }
+    });
+    if (raf) cancelAnimationFrame(raf);
+    setLevel(0);
+    URL.revokeObjectURL(url);
+    if (ctx) {
+      try {
+        await ctx.close();
+      } catch {
+        /* noop */
+      }
+    }
+  };
+
+  const busy = state === "thinking" || state === "speaking";
+  const onTap = () => {
+    if (busy) return;
+    if (state === "idle") startListening();
+    else if (state === "listening") stopListeningAndSend();
+  };
+
+  if (!splashDone) return <JarvisSplash onDone={() => setSplashDone(true)} />;
+  if (!pinChecked) return null;
+  if (pinEnabled && !pinUnlocked) return <PinLockGate onUnlock={() => setPinUnlocked(true)} />;
+  if (!authReady) return null;
+  if (!user) return <JarvisLogin />;
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
+    <div className="relative min-h-screen w-full overflow-hidden text-foreground">
+      {/* HUD grid backdrop */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30"
+        style={{
+          backgroundImage:
+            "linear-gradient(oklch(0.5 0.12 210 / 0.15) 1px, transparent 1px), linear-gradient(90deg, oklch(0.5 0.12 210 / 0.15) 1px, transparent 1px)",
+          backgroundSize: "42px 42px",
+          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
+        }}
       />
+      {/* Scanline */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute left-0 right-0 h-24 animate-jarvis-scan"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent, oklch(0.82 0.16 210 / 0.12), transparent)",
+          }}
+        />
+      </div>
+
+      {/* Header */}
+      <header className="relative z-10 flex items-center gap-3 px-4 pt-6 sm:px-8">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open menu"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--jarvis-cyan)]/40 bg-card/50 text-[color:var(--jarvis-cyan)] backdrop-blur transition hover:bg-[color:var(--jarvis-cyan)]/15"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="flex min-w-0 items-center gap-2.5 pl-1">
+          <img
+            src="/jarvis-icon.png"
+            alt="JARVIS"
+            className="h-8 w-8 drop-shadow-[0_0_10px_var(--jarvis-cyan)]"
+          />
+          <div className="flex min-w-0 flex-col leading-tight">
+            <ModeSwitcher mode={mode} setMode={setMode} />
+            <span className="font-hud truncate text-[9px] text-[color:var(--jarvis-gold)] text-glow-gold">
+              OP: {user.name.toUpperCase()}
+            </span>
+          </div>
+          <div className="ml-1 h-2 w-2 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
+        </div>
+
+        {/* Right cluster: Live Vision + profile avatar */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setLiveVisionOpen(true)}
+            aria-label="Open live vision"
+            title="Live Vision"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/40 bg-card/50 text-[color:var(--jarvis-cyan)] backdrop-blur transition hover:bg-[color:var(--jarvis-cyan)]/15 active:scale-95"
+          >
+            <Camera className="h-[18px] w-[18px]" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileSheetOpen(true)}
+            aria-label="Open profile menu"
+            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/20 active:scale-95"
+          >
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt={user.name} className="h-full w-full object-cover" />
+            ) : (
+              <span className="font-hud text-xs font-bold text-glow">
+                {(user.name || user.email).trim().charAt(0).toUpperCase()}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      <JarvisSidebar
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
+        history={history}
+        query={historyQuery}
+        setQuery={setHistoryQuery}
+        onDelete={(id) => persistHistory(history.filter((h) => h.id !== id))}
+        onClear={() => persistHistory([])}
+        onSelect={(item) => {
+          setSidebarOpen(false);
+          setMessages([
+            { role: "user", content: item.query, ts: item.ts },
+            ...(item.reply ? [{ role: "assistant" as const, content: item.reply, ts: item.ts + 1 }] : []),
+          ]);
+          setStatus(item.title?.trim() || "Chat restored");
+          setState("idle");
+        }}
+        onNewChat={startNewChat}
+        user={user}
+        avatarUrl={user.avatarUrl}
+        onOpenProfileSheet={() => setProfileSheetOpen(true)}
+        onOpenWorkspace={(v) => setWorkspaceView(v)}
+      />
+
+      <JarvisProfileSheet
+        open={profileSheetOpen}
+        onOpenChange={setProfileSheetOpen}
+        user={user}
+        avatarUrl={user.avatarUrl}
+        onNewChat={startNewChat}
+        onOpenHistory={() => setSidebarOpen(true)}
+        onOpenProfile={() => setShowAccount(true)}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenVoiceMode={() => setLiveVoiceOpen(true)}
+        onOpenLiveVision={() => setLiveVisionOpen(true)}
+        pinEnabled={pinEnabled}
+        onTogglePin={() => (pinEnabled ? disablePin() : setPinSetupOpen(true))}
+        onSignOut={() => { void supabase.auth.signOut(); }}
+      />
+
+      <JarvisWorkspace
+        view={workspaceView}
+        onClose={() => setWorkspaceView(null)}
+        currentTranscript={{
+          title: messages[0]?.content?.slice(0, 60) || "Chat",
+          text: messages.map((m) => `${m.role === "user" ? "You" : "JARVIS"}: ${m.content}`).join("\n\n"),
+        }}
+        plugins={{ voiceReplies, autoListen: handsFree, stealth: incognito, imageGen }}
+        setPlugins={(next: Plugins) => {
+          setVoiceReplies(next.voiceReplies);
+          setHandsFree(next.autoListen);
+          setIncognito(next.stealth);
+          setImageGen(next.imageGen);
+        }}
+      />
+
+
+
+
+      <AccountSheet
+        open={showAccount}
+        onOpenChange={setShowAccount}
+        user={user}
+        onUpdated={(next: { name?: string; email?: string; avatarUrl?: string | null }) => setUser((u) => (u ? { ...u, ...next } : u))}
+      />
+
+      <SettingsMenu
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        theme={theme}
+        setTheme={setTheme}
+        incognito={incognito}
+        setIncognito={setIncognito}
+        voiceSpeed={voiceSpeed}
+        setVoiceSpeed={setVoiceSpeed}
+        voicePitch={voicePitch}
+        setVoicePitch={setVoicePitch}
+      />
+
+
+      {/* Main */}
+      <main className="relative z-10 flex flex-col items-center px-5 pt-4 pb-40 sm:px-10">
+        <h1 className="font-hud text-center text-2xl font-bold text-glow sm:text-4xl">
+          Just A Rather Very Intelligent System
+        </h1>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          Bilingual voice interface — English & <span className="text-[color:var(--jarvis-gold)] text-glow-gold">తెలుగు</span>
+        </p>
+
+        {showSettings && false && (
+          <div className="mt-4 w-full max-w-md rounded-lg border border-[color:var(--jarvis-cyan)]/30 bg-card/60 p-4 backdrop-blur">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-hud text-[10px] text-[color:var(--jarvis-cyan)] text-glow">
+                ◢ VOICE CALIBRATION
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setVoiceSpeed(0.95);
+                  setVoicePitch(0);
+                }}
+                className="font-hud text-[10px] text-muted-foreground transition hover:text-foreground"
+              >
+                RESET ▸
+              </button>
+            </div>
+
+            <VoiceSlider
+              label="SPEED"
+              value={voiceSpeed}
+              min={0.7}
+              max={1.3}
+              step={0.05}
+              display={`${voiceSpeed.toFixed(2)}×`}
+              minLabel="Slow"
+              maxLabel="Fast"
+              onChange={setVoiceSpeed}
+              accent="cyan"
+            />
+            <div className="h-4" />
+            <VoiceSlider
+              label="PITCH"
+              value={voicePitch}
+              min={-3}
+              max={3}
+              step={1}
+              display={voicePitch > 0 ? `+${voicePitch}` : `${voicePitch}`}
+              minLabel="Deeper"
+              maxLabel="Higher"
+              onChange={(v) => setVoicePitch(Math.round(v))}
+              accent="gold"
+            />
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void speak(
+                  voicePitch <= -2
+                    ? "Systems online, sir. Voice calibration confirmed."
+                    : voicePitch >= 2
+                      ? "All systems nominal. Ready when you are, sir."
+                      : "At your service, sir. How may I assist you today?",
+                )
+              }
+              className="font-hud mt-4 w-full rounded-md border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 py-2 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/20 disabled:opacity-40"
+            >
+              ▶ PREVIEW VOICE
+            </button>
+          </div>
+        )}
+
+        {/* Orb stage */}
+        <div className="relative mt-6 aspect-square w-full max-w-[420px]">
+          {/* Rotating HUD rings behind canvas */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="absolute h-[95%] w-[95%] rounded-full border border-[color:var(--jarvis-cyan)]/30 animate-spin-slow" />
+            <div className="absolute h-[80%] w-[80%] rounded-full border border-dashed border-[color:var(--jarvis-cyan)]/40 animate-spin-reverse" />
+            <div className="absolute h-[65%] w-[65%] rounded-full border border-[color:var(--jarvis-gold)]/25 animate-spin-slow" />
+            {/* corner brackets */}
+            {["top-0 left-0", "top-0 right-0 rotate-90", "bottom-0 right-0 rotate-180", "bottom-0 left-0 -rotate-90"].map((cls) => (
+              <div
+                key={cls}
+                className={`absolute h-8 w-8 border-l-2 border-t-2 border-[color:var(--jarvis-cyan)] ${cls}`}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={onTap}
+            disabled={busy}
+            aria-label={state === "listening" ? "Stop listening" : "Start listening"}
+            className="group absolute inset-0 z-10 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--jarvis-cyan)] disabled:cursor-wait"
+          >
+            <JarvisOrb state={state} level={level} />
+          </button>
+          <WaveformRing level={level} active={state === "listening" || state === "speaking"} />
+          {state === "thinking" && <SearchingOverlay />}
+        </div>
+
+        {/* Status */}
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <div
+            className={`font-hud text-sm ${
+              state === "listening"
+                ? "text-[color:var(--jarvis-cyan)] text-glow animate-jarvis-pulse"
+                : state === "thinking"
+                  ? "text-[color:var(--jarvis-gold)] text-glow-gold"
+                  : state === "speaking"
+                    ? "text-[color:var(--jarvis-cyan)] text-glow"
+                    : "text-muted-foreground"
+            }`}
+          >
+            {status}
+          </div>
+          {error && (
+            <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-1 text-xs text-[color:var(--jarvis-red)]">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Text input to Jarvis */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (busy) return;
+            const t = textInput.trim();
+            if (!t && !pendingImage) return;
+            const img = pendingImage;
+            setTextInput("");
+            setPendingImage(null);
+            void sendUserMessage(t, img ?? undefined);
+          }}
+          className="mt-8 w-full max-w-2xl"
+        >
+          {pendingImage && (
+            <div className="mb-2 flex items-center gap-3 rounded-lg border border-[color:var(--jarvis-cyan)]/40 bg-card/60 p-2 backdrop-blur">
+              <img
+                src={pendingImage}
+                alt="Attached"
+                className="h-12 w-12 rounded object-cover border border-[color:var(--jarvis-cyan)]/40"
+              />
+              <div className="flex-1 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+                ◢ IMAGE ATTACHED — READY FOR ANALYSIS
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingImage(null)}
+                aria-label="Remove attachment"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--jarvis-red)]/50 text-[color:var(--jarvis-red)] transition hover:bg-[color:var(--jarvis-red)]/10"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/40 bg-card/60 px-3 py-2 backdrop-blur shadow-[0_0_18px_oklch(0.5_0.12_210/0.15)] focus-within:border-[color:var(--jarvis-cyan)] focus-within:shadow-[0_0_22px_oklch(0.5_0.12_210/0.35)] transition">
+            <UploadMenu onImage={setPendingImage} disabled={busy} />
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder={pendingImage ? "Ask JARVIS about this image…" : "Type a message for JARVIS…"}
+              disabled={busy}
+              className="font-hud flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
+              aria-label="Type a message for Jarvis"
+            />
+            <button
+              type="submit"
+              disabled={busy || (!textInput.trim() && !pendingImage)}
+              aria-label="Send message"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setLiveVoiceOpen(true)}
+              aria-label="Open live voice mode"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[oklch(0.7_0.16_235)] to-[oklch(0.55_0.18_255)] text-white shadow-[0_0_18px_oklch(0.6_0.18_235/0.6)] transition hover:scale-105"
+            >
+              <AudioLines className="h-4 w-4 animate-jarvis-pulse" />
+            </button>
+          </div>
+        </form>
+
+        {/* Transcript panel */}
+        <TranscriptPanel messages={messages} onClear={() => setMessages([])} />
+
+      </main>
+
+      {/* Footer glow */}
+      <div className="pointer-events-none fixed bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[color:var(--jarvis-cyan-deep)]/25 to-transparent" />
+      <div className="pointer-events-none fixed bottom-2 left-0 right-0 z-20 text-center">
+        <span className="font-hud text-[9px] tracking-[0.3em] text-muted-foreground">
+          JARVIS • CREATED BY <span className="text-[color:var(--jarvis-gold)] text-glow-gold">CHINNU</span>
+        </span>
+      </div>
+
+      <PinSetupDialog
+        open={pinSetupOpen}
+        onClose={() => {
+          setPinSetupOpen(false);
+          // Sync toggle state to reflect any changes / cancellations.
+          setPinEnabled(
+            typeof window !== "undefined" &&
+              localStorage.getItem(PIN_ENABLED_KEY) === "1" &&
+              !!localStorage.getItem(PIN_KEY),
+          );
+        }}
+        onSaved={() => {
+          setPinEnabled(true);
+          setPinUnlocked(true);
+        }}
+      />
+
+      <LiveVoiceOverlay
+        open={liveVoiceOpen}
+        onClose={() => {
+          setLiveVoiceOpen(false);
+          handsFreeRef.current = false;
+          setHandsFree(false);
+          if (state === "listening") void stopListeningAndSend();
+        }}
+        state={state}
+        level={level}
+        status={status}
+        messages={messages.map((m) => ({ role: m.role, content: m.content, ts: m.ts }))}
+        onStart={() => {
+          handsFreeRef.current = true;
+          setHandsFree(true);
+          if (state === "idle") void startListening();
+        }}
+        onSendText={(t) => void sendUserMessage(t)}
+      />
+
+      <LiveVisionOverlay
+        open={liveVisionOpen}
+        onClose={() => setLiveVisionOpen(false)}
+        onFrame={analyzeFrame}
+      />
+
     </div>
+  );
+}
+
+function ProfileMenu({ user, onSignOut, onOpenProfile, onOpenSettings, avatarUrl, onOpenLiveVoice }: { user: { name: string; email: string }; onSignOut: () => void; onOpenProfile: () => void; onOpenSettings: () => void; avatarUrl?: string | null; onOpenLiveVoice: () => void }) {
+  const initial = (user.name || user.email || "?").trim().charAt(0).toUpperCase();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Open profile menu"
+          className="group flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] shadow-[0_0_10px_oklch(0.5_0.12_210/0.35)] transition hover:bg-[color:var(--jarvis-cyan)]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--jarvis-cyan)]"
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="font-hud text-xs font-bold text-glow">{initial}</span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        className="w-64 border-[color:var(--jarvis-cyan)]/40 bg-card/95 backdrop-blur-xl"
+      >
+        <DropdownMenuLabel className="px-2 py-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)]">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-hud text-sm font-bold text-glow">{initial}</span>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate text-sm font-semibold text-foreground">{user.name}</span>
+              <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+            </div>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-[color:var(--jarvis-cyan)]/25" />
+        <DropdownMenuItem
+          onSelect={() => onOpenProfile()}
+          className="cursor-pointer gap-2 text-sm focus:bg-[color:var(--jarvis-cyan)]/10"
+        >
+          <User className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+          <span>Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onOpenSettings()}
+          className="cursor-pointer gap-2 text-sm focus:bg-[color:var(--jarvis-cyan)]/10"
+        >
+          <SettingsIcon className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+          <span>Settings</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onOpenLiveVoice()}
+          className="cursor-pointer gap-2 text-sm focus:bg-[color:var(--jarvis-cyan)]/10"
+        >
+          <AudioLines className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+          <span>Live Voice Mode</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-[color:var(--jarvis-cyan)]/25" />
+        <DropdownMenuItem
+          onSelect={() => onSignOut()}
+          className="cursor-pointer gap-2 text-sm text-[color:var(--jarvis-red)] focus:bg-[color:var(--jarvis-red)]/10 focus:text-[color:var(--jarvis-red)]"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+type Mode = "general" | "developer" | "creative";
+const MODE_META: Record<Mode, { label: string; hint: string; color: string; Icon: typeof Sparkles }> = {
+  general: { label: "General", hint: "Balanced assistant", color: "var(--jarvis-cyan)", Icon: Sparkles },
+  developer: { label: "Developer", hint: "Coding / Technical", color: "oklch(0.78 0.17 155)", Icon: Code2 },
+  creative: { label: "Creative", hint: "Brainstorming / Ideas", color: "oklch(0.72 0.2 310)", Icon: Palette },
+};
+
+function ModeSwitcher({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  const current = MODE_META[mode];
+  const CurrentIcon = current.Icon;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Change JARVIS mode"
+          className="font-hud group flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/10"
+          style={{ color: current.color }}
+        >
+          <CurrentIcon className="h-3 w-3" />
+          <span>J.A.R.V.I.S {mode !== "general" ? current.label : "• ONLINE"}</span>
+          <ChevronDown className="h-3 w-3 opacity-70 transition group-hover:opacity-100" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="w-60 border-[color:var(--jarvis-cyan)]/40 bg-card/95 backdrop-blur-xl"
+      >
+        <DropdownMenuLabel className="font-hud text-[9px] tracking-widest text-muted-foreground">
+          ◢ SELECT MODE
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-[color:var(--jarvis-cyan)]/25" />
+        {(Object.keys(MODE_META) as Mode[]).map((m) => {
+          const meta = MODE_META[m];
+          const Icon = meta.Icon;
+          const active = m === mode;
+          return (
+            <DropdownMenuItem
+              key={m}
+              onSelect={() => setMode(m)}
+              className="cursor-pointer gap-3 py-2 text-sm focus:bg-[color:var(--jarvis-cyan)]/10"
+            >
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-md border"
+                style={{ borderColor: meta.color, color: meta.color, background: `color-mix(in oklch, ${meta.color} 15%, transparent)` }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="text-sm font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                <span className="text-[11px] text-muted-foreground">{meta.hint}</span>
+              </span>
+              {active && <span className="font-hud text-[9px] tracking-widest text-[color:var(--jarvis-cyan)]">ACTIVE</span>}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+
+
+function TranscriptPanel({ messages, onClear }: { messages: Msg[]; onClear: () => void }) {
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    // Scroll the newest message into view after layout settles
+    const timer = window.setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [messages]);
+
+  return (
+    <div className="mt-10 w-full max-w-2xl">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="font-hud text-[10px] text-[color:var(--jarvis-cyan)] text-glow">
+          ◢ TRANSCRIPT LOG • SESSION {messages.length > 0 ? `[${messages.length}]` : "[0]"}
+        </div>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="font-hud text-[10px] text-muted-foreground transition hover:text-[color:var(--jarvis-red)]"
+          >
+            CLEAR ▸
+          </button>
+        )}
+      </div>
+      <div className="relative rounded-lg border border-[color:var(--jarvis-cyan)]/30 bg-card/50 backdrop-blur">
+        <div className="pointer-events-none absolute inset-0 rounded-lg shadow-[inset_0_0_40px_oklch(0.5_0.12_210/0.15)]" />
+        <ScrollArea ref={scrollRef} className="h-[320px] p-4">
+          {messages.length === 0 ? (
+            <div className="flex h-[280px] items-center justify-center text-center text-xs text-muted-foreground">
+              <div>
+                <div className="font-hud text-[10px] text-[color:var(--jarvis-cyan)]/60">
+                  ▮ AWAITING INPUT ▮
+                </div>
+                <div className="mt-2">Your conversation will appear here.</div>
+              </div>
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {messages.map((m, i) => {
+                const isUser = m.role === "user";
+                const time = new Date(m.ts).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+                return (
+                  <li key={i} ref={i === messages.length - 1 ? bottomRef : undefined} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-md border px-3 py-2 text-sm ${
+                        isUser
+                          ? "border-[color:var(--jarvis-gold)]/40 bg-[color:var(--jarvis-gold)]/5"
+                          : "border-[color:var(--jarvis-cyan)]/40 bg-[color:var(--jarvis-cyan)]/5"
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <span
+                          className={`font-hud text-[10px] ${
+                            isUser
+                              ? "text-[color:var(--jarvis-gold)] text-glow-gold"
+                              : "text-[color:var(--jarvis-cyan)] text-glow"
+                          }`}
+                        >
+                          {isUser ? "YOU" : "J.A.R.V.I.S"}
+                        </span>
+                        <span className="font-hud text-[9px] text-muted-foreground">{time}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap leading-relaxed text-foreground/90">
+                        {m.content}
+                      </p>
+                      {m.imageUrl && (
+                        <img
+                          src={m.imageUrl}
+                          alt={m.content}
+                          className="mt-2 w-full max-w-sm rounded-md border border-[color:var(--jarvis-cyan)]/30"
+                        />
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
+
+function VoiceSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  minLabel,
+  maxLabel,
+  onChange,
+  accent,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display: string;
+  minLabel: string;
+  maxLabel: string;
+  onChange: (v: number) => void;
+  accent: "cyan" | "gold";
+}) {
+  const color = accent === "cyan" ? "var(--jarvis-cyan)" : "var(--jarvis-gold)";
+  const glow = accent === "cyan" ? "text-glow" : "text-glow-gold";
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className={`font-hud text-[10px]`} style={{ color }}>
+          {label}
+        </span>
+        <span className={`font-hud text-[11px] ${glow}`} style={{ color }}>
+          {display}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full outline-none"
+        style={{
+          background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, oklch(0.3 0.02 240 / 0.5) ${pct}%, oklch(0.3 0.02 240 / 0.5) 100%)`,
+        }}
+      />
+      <div className="mt-1 flex justify-between font-hud text-[9px] text-muted-foreground">
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function SearchingOverlay() {
+  // Rolling stream of pseudo-hex + binary "data" for visual noise.
+  const [rows, setRows] = useState<string[]>(() => Array.from({ length: 14 }, makeRow));
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setRows((prev) => [...prev.slice(1), makeRow()]);
+    }, 120);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+      {/* Radar sweep cone */}
+      <div className="absolute inset-[6%] rounded-full overflow-hidden">
+        {/* concentric rings */}
+        {[30, 55, 80].map((pct) => (
+          <div
+            key={pct}
+            className="absolute rounded-full border border-[color:var(--jarvis-cyan)]/25"
+            style={{
+              top: `${(100 - pct) / 2}%`,
+              left: `${(100 - pct) / 2}%`,
+              width: `${pct}%`,
+              height: `${pct}%`,
+            }}
+          />
+        ))}
+        {/* crosshair */}
+        <div className="absolute left-1/2 top-0 h-full w-px bg-[color:var(--jarvis-cyan)]/25" />
+        <div className="absolute top-1/2 left-0 h-px w-full bg-[color:var(--jarvis-cyan)]/25" />
+      </div>
+
+      {/* Streaming data column, left */}
+      <div className="absolute left-1 top-4 bottom-4 w-16 overflow-hidden opacity-60 sm:left-2 sm:w-24">
+        <div className="font-hud text-[8px] leading-[1.35] text-[color:var(--jarvis-cyan)] text-glow whitespace-pre">
+          {rows.join("\n")}
+        </div>
+      </div>
+      {/* Streaming data column, right */}
+      <div className="absolute right-1 top-4 bottom-4 w-16 overflow-hidden opacity-60 sm:right-2 sm:w-24">
+        <div className="font-hud text-[8px] leading-[1.35] text-right text-[color:var(--jarvis-gold)] text-glow-gold whitespace-pre">
+          {rows.slice().reverse().join("\n")}
+        </div>
+      </div>
+
+      {/* Central status */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+        <div className="font-hud text-[9px] text-[color:var(--jarvis-cyan)] text-glow animate-jarvis-blink">
+          ◢ SEARCHING NEURAL NET ◣
+        </div>
+        <div className="relative h-[3px] w-40 overflow-hidden rounded bg-[color:var(--jarvis-cyan)]/15">
+          <div
+            className="absolute inset-y-0 w-1/2 animate-jarvis-search-bar rounded"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, oklch(0.82 0.16 210 / 0.9), transparent)",
+              boxShadow: "0 0 12px oklch(0.82 0.16 210 / 0.8)",
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const HEX = "0123456789ABCDEF";
+function makeRow() {
+  let s = "";
+  for (let i = 0; i < 12; i++) {
+    s += Math.random() < 0.35 ? (Math.random() < 0.5 ? "0" : "1") : HEX[Math.floor(Math.random() * 16)];
+  }
+  return s;
+}
+
+
+
+// ─── Command router ──────────────────────────────────────────────────────
+// Recognizes launcher-style voice commands and executes them client-side.
+// Returns a spoken confirmation string, or null if the utterance is not a
+// command (so it falls through to the LLM).
+//
+// NOTE: This is a browser app. App-scheme URIs (e.g. whatsapp://) launch the
+// native app if installed; otherwise we open a web fallback in a new tab.
+// System-settings panels, contact reads, calendar/alarm writes, and radio
+// toggles are NOT possible from a browser — those commands return a spoken
+// note explaining the limitation.
+
+function openApp(scheme: string, webFallback: string): void {
+  // Try the app scheme in the current tab, then open the web fallback in a
+  // new tab as a safety net. Browsers that don't recognize the scheme simply
+  // do nothing, so the web tab still gives the user a usable result.
+  try {
+    const w = window.open(webFallback, "_blank", "noopener");
+    // Attempt the app scheme via a hidden anchor so it doesn't blank the tab.
+    const a = document.createElement("a");
+    a.href = scheme;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 500);
+    void w;
+  } catch {
+    window.open(webFallback, "_blank", "noopener");
+  }
+}
+
+type AppEntry = { keys: RegExp; scheme: (q?: string) => string; web: (q?: string) => string; label: string };
+const APPS: AppEntry[] = [
+  { keys: /\b(whats ?app)\b/i, label: "WhatsApp",
+    scheme: () => "whatsapp://", web: () => "https://web.whatsapp.com" },
+  { keys: /\binstagram\b/i, label: "Instagram",
+    scheme: () => "instagram://", web: () => "https://www.instagram.com" },
+  { keys: /\bspotify\b/i, label: "Spotify",
+    scheme: () => "spotify:", web: () => "https://open.spotify.com" },
+  { keys: /\byoutube\b/i, label: "YouTube",
+    scheme: () => "vnd.youtube://", web: () => "https://www.youtube.com" },
+  { keys: /\b(gmail|google mail)\b/i, label: "Gmail",
+    scheme: () => "googlegmail://", web: () => "https://mail.google.com" },
+  { keys: /\b(google\s*)?maps\b/i, label: "Google Maps",
+    scheme: () => "comgooglemaps://", web: () => "https://maps.google.com" },
+  { keys: /\b(twitter|^x$|\bx app\b)\b/i, label: "Twitter",
+    scheme: () => "twitter://", web: () => "https://twitter.com" },
+  { keys: /\bfacebook\b/i, label: "Facebook",
+    scheme: () => "fb://", web: () => "https://www.facebook.com" },
+  { keys: /\btelegram\b/i, label: "Telegram",
+    scheme: () => "tg://", web: () => "https://web.telegram.org" },
+  { keys: /\bmessenger\b/i, label: "Messenger",
+    scheme: () => "fb-messenger://", web: () => "https://www.messenger.com" },
+  { keys: /\bnetflix\b/i, label: "Netflix",
+    scheme: () => "nflx://", web: () => "https://www.netflix.com" },
+  { keys: /\bcalendar\b/i, label: "Google Calendar",
+    scheme: () => "googlecalendar://", web: () => "https://calendar.google.com" },
+  { keys: /\b(contacts|phonebook)\b/i, label: "Contacts",
+    scheme: () => "contacts://", web: () => "https://contacts.google.com" },
+];
+
+const SETTINGS_KEYWORDS = /\b(wifi|wi-fi|bluetooth|location|gps|airplane|flight|display|brightness|battery|sound|volume|hotspot|data|mobile data)\b/i;
+
+function playOn(service: "youtube" | "spotify", query: string): string {
+  const q = query.replace(/[.?!]+$/, "").trim();
+  if (service === "youtube") {
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, "_blank", "noopener");
+    return `Playing ${q} on YouTube, sir.`;
+  }
+  window.open(`https://open.spotify.com/search/${encodeURIComponent(q)}`, "_blank", "noopener");
+  return `Playing ${q} on Spotify, sir.`;
+}
+
+export function handleCommand(text: string): string | null {
+  const t = text.trim();
+
+  // ── Play on YouTube / Spotify ──
+  const playM = t.match(/\bplay\s+(.+?)\s+on\s+(youtube|spotify)\b/i);
+  if (playM) return playOn(playM[2].toLowerCase() as "youtube" | "spotify", playM[1]);
+
+  // ── Install X from the store ──
+  const installM = t.match(/\binstall\s+(.+?)(?:\s+from\s+(?:the\s+)?(?:play\s*store|app\s*store|store))?[.?!]*$/i);
+  if (installM && installM[1]) {
+    const q = installM[1].replace(/[.?!]+$/, "").trim();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const url = isIOS
+      ? `https://apps.apple.com/search?term=${encodeURIComponent(q)}`
+      : `https://play.google.com/store/search?q=${encodeURIComponent(q)}&c=apps`;
+    window.open(url, "_blank", "noopener");
+    return `Opening the store for ${q}, sir.`;
+  }
+
+  // ── Navigate / directions ──
+  const navM = t.match(/\b(?:navigate|directions?|drive)\s+(?:to\s+)?(.+)/i);
+  if (navM && navM[1]) {
+    const dest = navM[1].replace(/[.?!]+$/, "").trim();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const url = isIOS
+      ? `https://maps.apple.com/?daddr=${encodeURIComponent(dest)}`
+      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+    window.open(url, "_blank", "noopener");
+    return `Navigating to ${dest}, sir.`;
+  }
+
+  // ── Find X near me ──
+  const nearM = t.match(/\bfind\s+(.+?)\s+near\s+me\b/i);
+  if (nearM && nearM[1]) {
+    const q = nearM[1].trim();
+    window.open(`https://www.google.com/maps/search/${encodeURIComponent(q)}/`, "_blank", "noopener");
+    return `Finding ${q} near you.`;
+  }
+
+  // ── Email ──
+  const emailM = t.match(/\bemail\s+(\S+@\S+\.\S+)(?:\s+(?:about|regarding|subject)\s+(.+?))?(?:\s+saying\s+(.+))?[.?!]*$/i);
+  if (emailM) {
+    const to = emailM[1];
+    const subject = (emailM[2] ?? "").trim();
+    const body = (emailM[3] ?? "").trim();
+    const params = new URLSearchParams();
+    if (subject) params.set("subject", subject);
+    if (body) params.set("body", body);
+    const qs = params.toString();
+    window.open(`mailto:${to}${qs ? `?${qs}` : ""}`, "_self");
+    return `Drafting an email to ${to}, sir.`;
+  }
+
+  // ── Text / SMS ──
+  const smsM = t.match(/\b(?:text|sms|message)\s+(.+?)(?:\s+saying\s+(.+))?[.?!]*$/i);
+  if (smsM) {
+    const target = smsM[1].trim();
+    const body = (smsM[2] ?? "").trim();
+    const digits = target.replace(/[^\d+]/g, "");
+    const to = digits.length >= 4 ? digits : target;
+    const qs = body ? `?&body=${encodeURIComponent(body)}` : "";
+    window.open(`sms:${to}${qs}`, "_self");
+    return `Preparing a text to ${target}, sir.`;
+  }
+
+  // ── Call: number ──
+  const callNumM = t.match(/\b(?:call|dial|phone|ring)\s+([\d\s+\-().]{4,})/i);
+  if (callNumM && callNumM[1]) {
+    const digits = callNumM[1].replace(/[^\d+]/g, "");
+    window.open(`tel:${digits}`, "_self");
+    return `Dialing ${digits}, sir.`;
+  }
+
+  // ── Call: named contact (browser can't read contacts; open dialer) ──
+  const callNameM = t.match(/\b(?:call|dial|phone|ring)\s+([a-z][a-z\s]{1,30})/i);
+  if (callNameM && callNameM[1]) {
+    const name = callNameM[1].replace(/[.?!]+$/, "").trim();
+    window.open(`tel:${encodeURIComponent(name)}`, "_self");
+    return `Opening the dialer for ${name}, sir. The browser can't reach your contacts, so please confirm the number.`;
+  }
+
+  // ── Add calendar event ──
+  const evtM = t.match(/\badd\s+(?:an?\s+)?event\s+(?:for\s+)?(.+)/i);
+  if (evtM && evtM[1]) {
+    const title = evtM[1].replace(/[.?!]+$/, "").trim();
+    window.open(`https://calendar.google.com/calendar/u/0/r/eventedit?text=${encodeURIComponent(title)}`, "_blank", "noopener");
+    return `Creating a calendar event for ${title}, sir.`;
+  }
+
+  // ── Set alarm (browsers can't; guide the user) ──
+  const alarmM = t.match(/\bset\s+(?:an?\s+)?alarm(?:\s+for\s+(.+))?/i);
+  if (alarmM) {
+    return "Alarms are native-only, sir — the browser can't schedule them. On mobile, please use your Clock app.";
+  }
+
+  // ── System settings (not available from the browser) ──
+  if (/\b(open|show|go to)\b.*\bsettings\b/i.test(t) || /\b(turn on|enable|turn off|disable)\b/i.test(t)) {
+    if (SETTINGS_KEYWORDS.test(t)) {
+      return "System settings can't be opened from a browser, sir. On a phone, please open them from the notification shade.";
+    }
+  }
+
+  // ── Known apps by name ──
+  if (/\b(open|launch|start|play)\b/i.test(t)) {
+    for (const app of APPS) {
+      if (app.keys.test(t)) {
+        openApp(app.scheme(), app.web());
+        return `Opening ${app.label}, sir.`;
+      }
+    }
+  }
+
+  // ── Search ──
+  const searchM = t.match(/\b(?:search|google|look up)\b\s+(?:for\s+)?(.+)/i);
+  if (searchM && searchM[1]) {
+    const q = searchM[1].replace(/[.?!]+$/, "").trim();
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, "_blank", "noopener");
+    return `Searching for ${q}.`;
+  }
+
+  // ── Generic "open <site>" website launcher ──
+  const openM = t.match(/\b(?:open|launch|go to|visit)\b\s+(?:the\s+)?([a-z0-9][a-z0-9\s.-]{1,40}?)(?:\s+(?:website|site|page|app))?[.?!]*$/i);
+  if (openM && openM[1]) {
+    const raw = openM[1].trim().toLowerCase().replace(/\s+/g, "");
+    const url = /^https?:\/\//i.test(raw)
+      ? raw
+      : raw.includes(".")
+        ? `https://${raw}`
+        : `https://www.${raw}.com`;
+    window.open(url, "_blank", "noopener");
+    return `Opening ${openM[1].trim()}, sir.`;
+  }
+
+  return null;
+}
+
+// Recognizes an image-generation request and returns the subject prompt,
+// or null if the utterance is not an image request.
+export function extractImagePrompt(text: string): string | null {
+  const t = text.trim();
+  const patterns: RegExp[] = [
+    /\b(?:generate|create|make|draw|render|design)\s+(?:an?\s+)?(?:image|picture|photo|pic|photograph|art)\s+(?:of\s+)?(.+)/i,
+    /\b(?:show|give|get|find|fetch)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:image|picture|photo|pic|photograph)\s+(?:of\s+)?(.+)/i,
+    /\b(?:image|picture|photo|pic)\s+of\s+(.+)/i,
+  ];
+  for (const re of patterns) {
+    const m = t.match(re);
+    if (m && m[1]) {
+      return m[1].replace(/[.?!]+$/, "").trim();
+    }
+  }
+  return null;
+}
+
+function SettingsMenu({
+  open,
+  onOpenChange,
+  theme,
+  setTheme,
+  incognito,
+  setIncognito,
+  voiceSpeed,
+  setVoiceSpeed,
+  voicePitch,
+  setVoicePitch,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  theme: "dark" | "light";
+  setTheme: (t: "dark" | "light") => void;
+  incognito: boolean;
+  setIncognito: (v: boolean) => void;
+  voiceSpeed: number;
+  setVoiceSpeed: (v: number) => void;
+  voicePitch: number;
+  setVoicePitch: (v: number) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full border-l border-[color:var(--jarvis-cyan)]/30 bg-card/95 p-0 backdrop-blur-xl sm:max-w-md"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "linear-gradient(oklch(0.5 0.12 210 / 0.3) 1px, transparent 1px), linear-gradient(90deg, oklch(0.5 0.12 210 / 0.3) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        <SheetHeader className="relative border-b border-[color:var(--jarvis-cyan)]/25 px-5 pb-4 pt-6">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close settings"
+            className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-[color:var(--jarvis-cyan)]/50 bg-background/70 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/20"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
+            <SheetTitle className="font-hud text-sm tracking-[0.25em] text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ SYSTEM SETTINGS
+            </SheetTitle>
+          </div>
+          <SheetDescription className="font-hud text-[10px] tracking-widest text-muted-foreground">
+            CALIBRATE INTERFACE
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="relative flex flex-col gap-5 px-5 py-6">
+          {/* Theme */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ APPEARANCE
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {theme === "dark" ? (
+                  <Moon className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+                ) : (
+                  <Sun className="h-4 w-4 text-[color:var(--jarvis-gold)]" />
+                )}
+                <div className="flex flex-col leading-tight">
+                  <span className="text-sm text-foreground">Theme</span>
+                  <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
+                    {theme === "dark" ? "DARK MODE" : "LIGHT MODE"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  className={`font-hud rounded border px-2 py-1 text-[10px] tracking-widest transition ${
+                    theme === "dark"
+                      ? "border-[color:var(--jarvis-cyan)] bg-[color:var(--jarvis-cyan)]/20 text-[color:var(--jarvis-cyan)] text-glow"
+                      : "border-border/60 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  DARK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  className={`font-hud rounded border px-2 py-1 text-[10px] tracking-widest transition ${
+                    theme === "light"
+                      ? "border-[color:var(--jarvis-gold)] bg-[color:var(--jarvis-gold)]/20 text-[color:var(--jarvis-gold)] text-glow-gold"
+                      : "border-border/60 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  LIGHT
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Incognito */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ PRIVACY
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <EyeOff className={`h-4 w-4 ${incognito ? "text-[color:var(--jarvis-gold)]" : "text-muted-foreground"}`} />
+                <div className="flex flex-col leading-tight">
+                  <span className="text-sm text-foreground">Incognito mode</span>
+                  <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
+                    JARVIS WON'T SAVE HISTORY
+                  </span>
+                </div>
+              </div>
+              <Switch checked={incognito} onCheckedChange={setIncognito} aria-label="Toggle incognito mode" />
+            </div>
+            {incognito && (
+              <div className="mt-3 rounded border border-[color:var(--jarvis-gold)]/40 bg-[color:var(--jarvis-gold)]/10 p-2 font-hud text-[9px] tracking-widest text-[color:var(--jarvis-gold)] text-glow-gold">
+                ▮ STEALTH ACTIVE — TRANSMISSIONS NOT LOGGED
+              </div>
+            )}
+          </div>
+
+          {/* Voice calibration */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+                ◢ VOICE CALIBRATION
+              </div>
+              <button
+                type="button"
+                onClick={() => { setVoiceSpeed(0.95); setVoicePitch(0); }}
+                className="font-hud text-[10px] text-muted-foreground transition hover:text-foreground"
+              >
+                RESET ▸
+              </button>
+            </div>
+            <VoiceSlider
+              label="SPEED"
+              value={voiceSpeed}
+              min={0.7}
+              max={1.3}
+              step={0.05}
+              display={`${voiceSpeed.toFixed(2)}×`}
+              minLabel="Slow"
+              maxLabel="Fast"
+              onChange={setVoiceSpeed}
+              accent="cyan"
+            />
+            <div className="h-4" />
+            <VoiceSlider
+              label="PITCH"
+              value={voicePitch}
+              min={-3}
+              max={3}
+              step={1}
+              display={voicePitch > 0 ? `+${voicePitch}` : `${voicePitch}`}
+              minLabel="Deeper"
+              maxLabel="Higher"
+              onChange={(v) => setVoicePitch(Math.round(v))}
+              accent="gold"
+            />
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ---------- Upload Menu ----------
+function fileToDataUrl(file: File, maxDim = 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Image decode failed"));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas unsupported"));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function UploadMenu({ onImage, disabled }: { onImage: (dataUrl: string) => void; disabled?: boolean }) {
+  const photoRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleFile = async (f: File | undefined | null) => {
+    if (!f) return;
+    setErr(null);
+    try {
+      if (!f.type.startsWith("image/")) {
+        setErr("Only image files are supported.");
+        return;
+      }
+      const url = await fileToDataUrl(f, 1024);
+      onImage(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    }
+  };
+
+  return (
+    <>
+      <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
+      <input ref={fileRef} type="file" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label="Attach file"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/25 disabled:opacity-40"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={8} className="w-52 border-[color:var(--jarvis-cyan)]/40 bg-card/95 backdrop-blur-xl">
+          <DropdownMenuLabel className="font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
+            ATTACH
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator className="bg-[color:var(--jarvis-cyan)]/25" />
+          <DropdownMenuItem onSelect={() => photoRef.current?.click()} className="cursor-pointer gap-2 focus:bg-[color:var(--jarvis-cyan)]/10">
+            <ImageIcon className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+            <span>Photos</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => cameraRef.current?.click()} className="cursor-pointer gap-2 focus:bg-[color:var(--jarvis-cyan)]/10">
+            <Camera className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+            <span>Camera</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => fileRef.current?.click()} className="cursor-pointer gap-2 focus:bg-[color:var(--jarvis-cyan)]/10">
+            <FileText className="h-4 w-4 text-[color:var(--jarvis-cyan)]" />
+            <span>Files</span>
+          </DropdownMenuItem>
+          {err && (
+            <div className="px-2 py-1 text-[10px] text-[color:var(--jarvis-red)]">{err}</div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+// ---------- Account Sheet ----------
+function AccountSheet({
+  open,
+  onOpenChange,
+  user,
+  onUpdated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: { name: string; email: string; avatarUrl?: string | null };
+  onUpdated: (next: { name?: string; email?: string; avatarUrl?: string | null }) => void;
+}) {
+  const [fullName, setFullName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl ?? null);
+  const [saving, setSaving] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setFullName(user.name);
+      setEmail(user.email);
+      setAvatarUrl(user.avatarUrl ?? null);
+      setInfo(null);
+      setErr(null);
+      setConfirmDelete(false);
+    }
+  }, [open, user]);
+
+  const handleAvatarFile = async (f?: File | null) => {
+    if (!f) return;
+    setErr(null);
+    try {
+      if (!f.type.startsWith("image/")) throw new Error("Choose an image file.");
+      const url = await fileToDataUrl(f, 256);
+      setAvatarUrl(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setErr(null);
+    setInfo(null);
+    try {
+      const payload: {
+        data: { full_name: string; avatar_url: string | null };
+        email?: string;
+      } = {
+        data: { full_name: fullName.trim(), avatar_url: avatarUrl },
+      };
+      if (email.trim() && email.trim() !== user.email) payload.email = email.trim();
+      const { error } = await supabase.auth.updateUser(payload);
+      if (error) throw error;
+      onUpdated({ name: fullName.trim(), email: email.trim() || user.email, avatarUrl });
+      setInfo(
+        payload.email
+          ? "Saved. Confirm your new email via the link we sent."
+          : "Profile updated.",
+      );
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    }
+    setSaving(false);
+  };
+
+  const doDelete = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      await deleteMyAccount();
+      await supabase.auth.signOut();
+      window.location.href = "/";
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Delete failed");
+      setSaving(false);
+    }
+  };
+
+  const initial = (fullName || email || "?").trim().charAt(0).toUpperCase();
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto border-[color:var(--jarvis-cyan)]/40 bg-card/95 backdrop-blur-xl">
+        <SheetHeader className="flex flex-row items-start justify-between">
+          <div>
+            <SheetTitle className="font-hud tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ ACCOUNT SETTINGS ◣
+            </SheetTitle>
+            <SheetDescription className="font-hud text-[10px] tracking-widest text-muted-foreground">
+              PROFILE MANAGEMENT • STARK INDUSTRIES
+            </SheetDescription>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/40 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/10"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-6">
+          {/* Avatar */}
+          <div className="flex items-center gap-4">
+            <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 shadow-[0_0_20px_oklch(0.5_0.12_210/0.35)]">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center font-hud text-2xl font-bold text-[color:var(--jarvis-cyan)] text-glow">
+                  {initial}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => void handleAvatarFile(e.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="font-hud rounded-md border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 px-3 py-1.5 text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/25"
+              >
+                ▸ CHANGE PHOTO
+              </button>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={() => setAvatarUrl(null)}
+                  className="font-hud text-[10px] tracking-widest text-muted-foreground transition hover:text-[color:var(--jarvis-red)]"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Full name */}
+          <div>
+            <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
+              FULL NAME
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
+              EMAIL ADDRESS
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+            />
+            <p className="font-hud mt-1 text-[9px] tracking-widest text-muted-foreground">
+              Changing email requires confirmation via link.
+            </p>
+          </div>
+
+          {err && (
+            <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-2 text-center text-xs text-[color:var(--jarvis-red)]">
+              {err}
+            </div>
+          )}
+          {info && !err && (
+            <div className="rounded border border-[color:var(--jarvis-cyan)]/40 bg-[color:var(--jarvis-cyan)]/10 px-3 py-2 text-center text-xs text-[color:var(--jarvis-cyan)]">
+              {info}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving}
+            className="font-hud flex w-full items-center justify-center gap-2 rounded-md border border-[color:var(--jarvis-cyan)]/60 bg-[color:var(--jarvis-cyan)]/10 py-2.5 text-xs tracking-[0.3em] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/20 disabled:cursor-wait disabled:opacity-70"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? "SAVING…" : "SAVE CHANGES"}
+          </button>
+
+
+
+
+          {/* Danger zone */}
+          <div className="mt-8 rounded-lg border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/5 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-[color:var(--jarvis-red)]" />
+              <span className="font-hud text-[10px] tracking-[0.3em] text-[color:var(--jarvis-red)]">
+                DANGER ZONE
+              </span>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Delete your account and all associated data. This action is
+              permanent and cannot be undone.
+            </p>
+            {!confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="font-hud w-full rounded-md border border-[color:var(--jarvis-red)]/60 bg-[color:var(--jarvis-red)]/10 py-2 text-xs tracking-[0.3em] text-[color:var(--jarvis-red)] transition hover:bg-[color:var(--jarvis-red)]/20"
+              >
+                ▸ DELETE ACCOUNT
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-center text-xs text-[color:var(--jarvis-red)]">
+                  Are you absolutely sure?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={saving}
+                    className="font-hud flex-1 rounded-md border border-[color:var(--jarvis-cyan)]/40 py-2 text-[10px] tracking-widest text-muted-foreground transition hover:text-foreground"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void doDelete()}
+                    disabled={saving}
+                    className="font-hud flex-1 rounded-md border border-[color:var(--jarvis-red)]/60 bg-[color:var(--jarvis-red)]/20 py-2 text-[10px] tracking-widest text-[color:var(--jarvis-red)] transition hover:bg-[color:var(--jarvis-red)]/30 disabled:opacity-60"
+                  >
+                    {saving ? "DELETING…" : "CONFIRM DELETE"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

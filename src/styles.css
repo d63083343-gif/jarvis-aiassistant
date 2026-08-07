@@ -63,25 +63,33 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  /* JARVIS HUD — deep navy void with arc-reactor cyan + repulsor gold */
+  --background: oklch(0.14 0.03 250);
+  --foreground: oklch(0.96 0.02 210);
+  --card: oklch(0.18 0.035 250);
+  --card-foreground: oklch(0.96 0.02 210);
+  --popover: oklch(0.18 0.035 250);
+  --popover-foreground: oklch(0.96 0.02 210);
+  --primary: oklch(0.82 0.16 210);
+  --primary-foreground: oklch(0.14 0.03 250);
+  --secondary: oklch(0.24 0.05 250);
+  --secondary-foreground: oklch(0.96 0.02 210);
+  --muted: oklch(0.22 0.04 250);
+  --muted-foreground: oklch(0.72 0.06 210);
+  --accent: oklch(0.82 0.18 75);
+  --accent-foreground: oklch(0.14 0.03 250);
+  --destructive: oklch(0.65 0.24 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.5 0.12 210 / 0.28);
+  --input: oklch(0.28 0.05 250);
+  --ring: oklch(0.82 0.16 210);
+  --jarvis-cyan: oklch(0.85 0.18 210);
+  --jarvis-cyan-deep: oklch(0.55 0.16 235);
+  --jarvis-gold: oklch(0.85 0.18 75);
+  --jarvis-red: oklch(0.65 0.24 25);
+  --gradient-hud: radial-gradient(ellipse at center, oklch(0.22 0.05 235) 0%, oklch(0.1 0.02 250) 70%);
+  --shadow-glow: 0 0 40px oklch(0.82 0.16 210 / 0.6), 0 0 80px oklch(0.55 0.16 235 / 0.4);
+  --shadow-glow-gold: 0 0 40px oklch(0.82 0.18 75 / 0.5);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -132,6 +140,38 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Light JARVIS theme — bright HUD variant */
+.light {
+  --background: oklch(0.97 0.015 210);
+  --foreground: oklch(0.2 0.05 250);
+  --card: oklch(0.99 0.01 210);
+  --card-foreground: oklch(0.2 0.05 250);
+  --popover: oklch(0.99 0.01 210);
+  --popover-foreground: oklch(0.2 0.05 250);
+  --primary: oklch(0.55 0.16 235);
+  --primary-foreground: oklch(0.98 0.01 210);
+  --secondary: oklch(0.9 0.03 210);
+  --secondary-foreground: oklch(0.2 0.05 250);
+  --muted: oklch(0.92 0.02 210);
+  --muted-foreground: oklch(0.4 0.06 250);
+  --accent: oklch(0.75 0.15 75);
+  --accent-foreground: oklch(0.2 0.05 250);
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.55 0.16 235 / 0.35);
+  --input: oklch(0.88 0.03 210);
+  --ring: oklch(0.55 0.16 235);
+  --jarvis-cyan: oklch(0.55 0.16 235);
+  --jarvis-cyan-deep: oklch(0.45 0.16 240);
+  --jarvis-gold: oklch(0.65 0.16 75);
+  --jarvis-red: oklch(0.6 0.22 25);
+  --gradient-hud: radial-gradient(ellipse at center, oklch(0.94 0.03 210) 0%, oklch(0.98 0.01 210) 70%);
+  --shadow-glow: 0 0 40px oklch(0.55 0.16 235 / 0.35), 0 0 80px oklch(0.55 0.16 235 / 0.2);
+  --shadow-glow-gold: 0 0 40px oklch(0.65 0.16 75 / 0.35);
+}
+
+
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -140,5 +180,92 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    background-image: var(--gradient-hud);
+    background-attachment: fixed;
+    font-family: "Rajdhani", "Orbitron", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
+}
+
+@utility text-glow {
+  text-shadow: 0 0 12px oklch(0.82 0.16 210 / 0.8), 0 0 32px oklch(0.55 0.16 235 / 0.5);
+}
+
+@utility text-glow-gold {
+  text-shadow: 0 0 12px oklch(0.82 0.18 75 / 0.8);
+}
+
+@utility font-hud {
+  font-family: "Orbitron", "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes jarvis-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes jarvis-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+@keyframes jarvis-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+@keyframes jarvis-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.7; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes jarvis-flicker {
+  0%, 100% { opacity: 1; }
+  45% { opacity: 0.85; }
+  55% { opacity: 0.6; }
+}
+
+.animate-spin-slow { animation: jarvis-spin-slow 22s linear infinite; }
+.animate-spin-reverse { animation: jarvis-spin-reverse 14s linear infinite; }
+.animate-jarvis-pulse { animation: jarvis-pulse 2.4s ease-in-out infinite; }
+.animate-jarvis-scan { animation: jarvis-scan 6s linear infinite; }
+.animate-jarvis-flicker { animation: jarvis-flicker 4s ease-in-out infinite; }
+
+@keyframes jarvis-radar {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes jarvis-data-stream {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+@keyframes jarvis-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes jarvis-search-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.animate-jarvis-radar { animation: jarvis-radar 2.2s linear infinite; }
+.animate-jarvis-data-stream { animation: jarvis-data-stream 6s linear infinite; }
+.animate-jarvis-blink { animation: jarvis-blink 1s ease-in-out infinite; }
+.animate-jarvis-search-bar { animation: jarvis-search-bar 1.4s ease-in-out infinite; }
+
+@keyframes splash-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Cover the injected "Edit with Lovable" badge */
+#lovable-badge,
+#lovable-badge-container,
+[id^="lovable-badge"],
+a[href*="lovable.dev/projects"],
+a[href*="lovable.dev?utm"],
+a[href*="lovable.app/?utm"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
