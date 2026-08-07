@@ -750,7 +750,42 @@ function JarvisPage() {
   }, [addHistoryQuery, attachReplyToHistory]);
 
   // Live Vision — send a camera frame to JARVIS and speak the observation.
+  // Screen share — JARVIS reads whatever is on the shared screen.
+  const analyzeScreen = useCallback(async (dataUrl: string) => {
+    const res = await fetch("/api/jarvis-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: modeRef.current,
+        persona: personaRef.current,
+        memories: memoriesRef.current,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "This is a screenshot of the user's screen. Explain what is on it and help with whatever they appear to be doing. Two or three short spoken sentences.",
+              },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Screen ${res.status}`);
+    const data = (await res.json()) as { reply?: string };
+    const reply = (data.reply ?? "").trim();
+    if (reply) {
+      setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
+      void persistTurn("assistant", reply);
+      try { await speak(reply); } catch { /* noop */ }
+    }
+    return reply;
+  }, [persistTurn]);
+
   const analyzeFrame = useCallback(async (dataUrl: string) => {
+
     const res = await fetch("/api/jarvis-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
