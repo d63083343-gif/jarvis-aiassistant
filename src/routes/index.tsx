@@ -777,36 +777,102 @@ function JarvisPage() {
 
   // Free, offline fallback voice: the browser's built-in speech synthesis.
   // Used whenever the hosted TTS is unavailable (quota/credits/rate limits).
+  // ── Barge-in (talk over JARVIS) ────────────────────────────────────────
+  // While a reply is being spoken we keep a light mic monitor running. When
+  // the user starts talking, playback stops instantly and we go back to
+  // listening — like interrupting a person mid-sentence.
+  const bargeInRef = useRef<(() => void) | null>(null);
+  const startBargeInMonitor = useCallback(async (onInterrupt: () => void) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const AC: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let frames = 0;
+      let raf = 0;
+      let stopped = false;
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        cancelAnimationFrame(raf);
+        stream.getTracks().forEach((t) => t.stop());
+        void ctx.close().catch(() => {});
+        bargeInRef.current = null;
+      };
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const lvl = Math.sqrt(sum / data.length) * 3;
+        // Higher threshold than normal VAD so speaker bleed doesn't trigger it.
+        if (lvl > 0.3) {
+          frames += 1;
+          if (frames >= 6) {
+            stop();
+            onInterrupt();
+            return;
+          }
+        } else {
+          frames = Math.max(0, frames - 1);
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+      bargeInRef.current = stop;
+      return stop;
+    } catch {
+      return () => {};
+    }
+  }, []);
+
+  // Free, offline fallback voice: the browser's built-in speech synthesis.
   const speakWithBrowser = (text: string) =>
     new Promise<void>((resolve) => {
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
       if (!synth) return resolve();
       try {
         synth.cancel();
+        const p = resolvePersona(personaRef.current);
         const u = new SpeechSynthesisUtterance(text);
         const voices = synth.getVoices();
+        const langRe = new RegExp(p.fallback.lang, "i");
         const preferred =
-          voices.find((v) => /en-GB/i.test(v.lang) && /male|daniel|arthur|george/i.test(v.name)) ||
-          voices.find((v) => /en-GB/i.test(v.lang)) ||
+          voices.find((v) => langRe.test(v.lang) && p.fallback.match.test(v.name)) ||
+          voices.find((v) => p.fallback.match.test(v.name) && /^en/i.test(v.lang)) ||
+          voices.find((v) => langRe.test(v.lang)) ||
           voices.find((v) => /^en/i.test(v.lang));
         if (preferred) u.voice = preferred;
-        u.lang = preferred?.lang || "en-GB";
+        u.lang = preferred?.lang || p.fallback.lang;
         u.rate = Math.min(1.2, Math.max(0.7, voiceSpeedRef.current || 0.95));
         u.pitch = Math.min(2, Math.max(0.4, 1 + (voicePitchRef.current || 0) * 0.15));
         let done = false;
         const finish = () => { if (!done) { done = true; setLevel(0); resolve(); } };
-        u.onend = finish;
-        u.onerror = finish;
         // Crude but effective level animation while the browser voice speaks.
         const iv = setInterval(() => setLevel(0.25 + Math.random() * 0.35), 120);
         const clear = () => { clearInterval(iv); finish(); };
         u.onend = clear;
         u.onerror = clear;
+        void startBargeInMonitor(() => {
+          try { synth.cancel(); } catch { /* noop */ }
+          clear();
+        });
         synth.speak(u);
       } catch {
         resolve();
       }
     });
+
 
   const speak = async (text: string) => {
     if (!voiceRepliesRef.current) return;
