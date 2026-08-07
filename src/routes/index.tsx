@@ -978,6 +978,62 @@ function JarvisPage() {
     if (interrupted) setStatus("Go ahead, I'm listening…");
   };
 
+  // ── Wake word: "Hey JARVIS" ──────────────────────────────────────────
+  // A low-cost background recogniser runs only while idle. As soon as the
+  // phrase is heard it hands the microphone over to the normal capture loop.
+  useEffect(() => {
+    if (!user || !wakeWord) return;
+    if (state !== "idle") return;
+    if (liveVoiceOpen || liveVisionOpen || screenShareOpen) return;
+    const SR =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognition }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognition })
+        .webkitSpeechRecognition;
+    if (!SR) return;
+
+    let stopped = false;
+    let rec: SpeechRecognition | null = null;
+    let restart: ReturnType<typeof setTimeout> | null = null;
+
+    const begin = () => {
+      if (stopped) return;
+      try {
+        rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        rec.onresult = (e: SpeechRecognitionEvent) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const heard = e.results[i][0].transcript.toLowerCase();
+            if (/\b(hey|hi|ok|okay)[\s,]*(jarvis|friday|veronica|edith|jarvi[cs])\b/.test(heard)) {
+              stopped = true;
+              try { rec?.stop(); } catch { /* noop */ }
+              setStatus("Yes? Listening…");
+              void startListening();
+              return;
+            }
+          }
+        };
+        rec.onerror = () => {
+          if (!stopped) restart = setTimeout(begin, 1500);
+        };
+        rec.onend = () => {
+          if (!stopped) restart = setTimeout(begin, 600);
+        };
+        rec.start();
+      } catch {
+        /* wake word unavailable on this browser */
+      }
+    };
+    begin();
+
+    return () => {
+      stopped = true;
+      if (restart) clearTimeout(restart);
+      try { rec?.stop(); } catch { /* noop */ }
+    };
+  }, [user, wakeWord, state, liveVoiceOpen, liveVisionOpen, screenShareOpen, startListening]);
+
 
   const busy = state === "thinking" || state === "speaking";
   const onTap = () => {
