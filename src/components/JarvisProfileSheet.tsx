@@ -91,7 +91,10 @@ export function JarvisProfileSheet({
     [
       { label: "Voice Mode", Icon: AudioLines, run: act(onOpenVoiceMode) },
       { label: "Live Vision", Icon: Eye, run: act(onOpenLiveVision) },
+      { label: "Share Screen", Icon: MonitorUp, run: act(onOpenScreenShare) },
     ],
+    [{ label: "Storage", Icon: HardDrive, run: act(onOpenStorage) }],
+
     [
       {
         label: "PIN Lock",
