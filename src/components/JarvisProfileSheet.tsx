@@ -20,7 +20,10 @@ import {
   ChevronRight,
   ChevronLeft,
   Mail,
+  MonitorUp,
+  HardDrive,
 } from "lucide-react";
+
 
 type Row = {
   label: string;
@@ -41,6 +44,8 @@ export function JarvisProfileSheet({
   onOpenSettings,
   onOpenVoiceMode,
   onOpenLiveVision,
+  onOpenScreenShare,
+  onOpenStorage,
   pinEnabled,
   onTogglePin,
   onSignOut,
@@ -55,10 +60,13 @@ export function JarvisProfileSheet({
   onOpenSettings: () => void;
   onOpenVoiceMode: () => void;
   onOpenLiveVision: () => void;
+  onOpenScreenShare: () => void;
+  onOpenStorage: () => void;
   pinEnabled: boolean;
   onTogglePin: () => void;
   onSignOut: () => void;
 }) {
+
   const [helpOpen, setHelpOpen] = useState(false);
   const initial = (user.name || user.email || "?").trim().charAt(0).toUpperCase();
 
@@ -83,7 +91,10 @@ export function JarvisProfileSheet({
     [
       { label: "Voice Mode", Icon: AudioLines, run: act(onOpenVoiceMode) },
       { label: "Live Vision", Icon: Eye, run: act(onOpenLiveVision) },
+      { label: "Share Screen", Icon: MonitorUp, run: act(onOpenScreenShare) },
     ],
+    [{ label: "Storage", Icon: HardDrive, run: act(onOpenStorage) }],
+
     [
       {
         label: "PIN Lock",

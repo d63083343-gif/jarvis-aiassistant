@@ -45,11 +45,47 @@ import {
   PIN_KEY,
   PIN_ENABLED_KEY,
 } from "@/components/JarvisExtras";
+import { JarvisStorageSheet } from "@/components/JarvisStorageSheet";
+import { JarvisScreenShare } from "@/components/JarvisScreenShare";
+import {
+  PERSONA_LIST,
+  resolvePersona,
+  type PersonaId,
+} from "@/lib/jarvisPersonas";
+import {
+  addMemory,
+  createConversation,
+  extractMemory,
+  listMemories,
+  loadProfile,
+  saveDataUrlImage,
+  saveMessage,
+  savePersona,
+  setConversationTitle,
+} from "@/lib/jarvisCloud";
+
+
 
 
 export const Route = createFileRoute("/")({
   component: JarvisPage,
 });
+
+/** Minimal Web Speech API surface used for wake-word detection. */
+type WakeRecognitionEvent = {
+  resultIndex: number;
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+type WakeRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: WakeRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
 
 type Msg = { role: "user" | "assistant"; content: string; ts: number; imageUrl?: string };
 type State = "idle" | "listening" | "thinking" | "speaking";
@@ -91,7 +127,60 @@ function JarvisPage() {
   const [liveVoiceOpen, setLiveVoiceOpen] = useState(false);
   const [liveVisionOpen, setLiveVisionOpen] = useState(false);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [storageOpen, setStorageOpen] = useState(false);
+  const [screenShareOpen, setScreenShareOpen] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView | null>(null);
+
+  // ── Voice persona ────────────────────────────────────────────────────
+  const [persona, setPersonaState] = useState<PersonaId>(() => {
+    if (typeof window === "undefined") return "jarvis";
+    const v = localStorage.getItem("jarvis.persona");
+    return (["jarvis", "friday", "veronica", "edith"].includes(v ?? "") ? v : "jarvis") as PersonaId;
+  });
+  const personaRef = useRef<PersonaId>(persona);
+  const setPersona = useCallback((p: PersonaId) => {
+    setPersonaState(p);
+    personaRef.current = p;
+    try { localStorage.setItem("jarvis.persona", p); } catch { /* noop */ }
+    void savePersona(p);
+  }, []);
+  useEffect(() => { personaRef.current = persona; }, [persona]);
+
+  // ── Wake word ("Hey JARVIS") ─────────────────────────────────────────
+  const [wakeWord, setWakeWord] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("jarvis.wakeWord") !== "0";
+  });
+  const wakeWordRef = useRef(wakeWord);
+  useEffect(() => {
+    wakeWordRef.current = wakeWord;
+    try { localStorage.setItem("jarvis.wakeWord", wakeWord ? "1" : "0"); } catch { /* noop */ }
+  }, [wakeWord]);
+
+  // ── Persistent memory + cloud conversation ───────────────────────────
+  const memoriesRef = useRef<string[]>([]);
+  const conversationIdRef = useRef<string | null>(null);
+  const rememberFrom = useCallback((text: string) => {
+    const fact = extractMemory(text);
+    if (!fact || memoriesRef.current.includes(fact)) return;
+    memoriesRef.current = [fact, ...memoriesRef.current].slice(0, 60);
+    void addMemory(fact);
+  }, []);
+  const persistTurn = useCallback(
+    async (role: "user" | "assistant", content: string, imageUrl?: string | null) => {
+      if (incognitoRef.current) return;
+      try {
+        if (!conversationIdRef.current) {
+          conversationIdRef.current = await createConversation(content.slice(0, 60));
+        }
+        if (conversationIdRef.current) {
+          await saveMessage(conversationIdRef.current, role, content, imageUrl ?? null);
+        }
+      } catch { /* best effort */ }
+    },
+    [],
+  );
+
   const [voiceReplies, setVoiceReplies] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("jarvis.voiceReplies") !== "0";
@@ -205,9 +294,27 @@ function JarvisPage() {
     setPendingImage(null);
     setTextInput("");
     setError(null);
+    conversationIdRef.current = null;
     setStatus("New session — tap the core or type to begin");
     setState("idle");
   }, []);
+
+  // Pull persona + long-term memory from the cloud once signed in.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    void (async () => {
+      const profile = await loadProfile();
+      if (alive && profile?.persona) {
+        setPersonaState(profile.persona);
+        personaRef.current = profile.persona;
+      }
+      const mem = await listMemories();
+      if (alive) memoriesRef.current = mem.map((m) => m.content);
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
   useEffect(() => {
     let mounted = true;
     const applySession = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
@@ -421,6 +528,8 @@ function JarvisPage() {
       setMessages(nextMsgs);
       setStatus("Thinking…");
       const historyId = addHistoryQuery(userText);
+      rememberFrom(userText);
+      void persistTurn("user", userText);
 
       // Intercept image-generation requests.
       const imgPrompt = imageGenRef.current ? extractImagePrompt(userText) : null;
@@ -436,12 +545,14 @@ function JarvisPage() {
           const data = (await res.json()) as { image?: string; error?: string };
           if (!data.image) throw new Error(data.error || "No image returned");
           saveGeneratedImage(data.image, imgPrompt);
+          void saveDataUrlImage(data.image, imgPrompt);
           const reply = `Here is your image of ${imgPrompt}, sir.`;
           setMessages((m) => [
             ...m,
             { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() },
           ]);
           attachReplyToHistory(historyId, reply);
+          void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
           await speak(reply);
@@ -464,6 +575,7 @@ function JarvisPage() {
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
+        void persistTurn("assistant", commandReply);
         setState("speaking");
         setStatus("Executing…");
         await speak(commandReply);
@@ -480,7 +592,12 @@ function JarvisPage() {
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMsgs, mode: modeRef.current }),
+        body: JSON.stringify({
+          messages: nextMsgs,
+          mode: modeRef.current,
+          persona: personaRef.current,
+          memories: memoriesRef.current,
+        }),
       });
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
@@ -496,6 +613,7 @@ function JarvisPage() {
       }
       setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
       attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
 
       setState("speaking");
       setStatus("Responding…");
@@ -529,6 +647,8 @@ function JarvisPage() {
     setState("thinking");
     setStatus("Thinking…");
     const historyId = addHistoryQuery(imageUrl ? `[image] ${userText}`.trim() : userText);
+    rememberFrom(userText);
+    void persistTurn("user", userText || "(image attached)", imageUrl ?? null);
 
     // If no image is attached, allow image-generation and command routing.
     if (!imageUrl) {
@@ -545,9 +665,11 @@ function JarvisPage() {
           const data = (await res.json()) as { image?: string; error?: string };
           if (!data.image) throw new Error(data.error || "No image returned");
           saveGeneratedImage(data.image, imgPrompt);
+          void saveDataUrlImage(data.image, imgPrompt);
           const reply = `Here is your image of ${imgPrompt}, sir.`;
           setMessages((m) => [...m, { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() }]);
           attachReplyToHistory(historyId, reply);
+          void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
           await speak(reply);
@@ -565,6 +687,7 @@ function JarvisPage() {
       if (commandReply) {
         setMessages((m) => [...m, { role: "assistant", content: commandReply, ts: Date.now() }]);
         attachReplyToHistory(historyId, commandReply);
+        void persistTurn("assistant", commandReply);
         setState("speaking");
         setStatus("Executing…");
         await speak(commandReply);
@@ -591,7 +714,12 @@ function JarvisPage() {
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, mode: modeRef.current }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          mode: modeRef.current,
+          persona: personaRef.current,
+          memories: memoriesRef.current,
+        }),
       });
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
@@ -607,6 +735,7 @@ function JarvisPage() {
       }
       setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
       attachReplyToHistory(historyId, reply);
+      void persistTurn("assistant", reply);
       setState("speaking");
       setStatus("Responding…");
       await speak(reply);
@@ -621,12 +750,48 @@ function JarvisPage() {
   }, [addHistoryQuery, attachReplyToHistory]);
 
   // Live Vision — send a camera frame to JARVIS and speak the observation.
-  const analyzeFrame = useCallback(async (dataUrl: string) => {
+  // Screen share — JARVIS reads whatever is on the shared screen.
+  const analyzeScreen = useCallback(async (dataUrl: string) => {
     const res = await fetch("/api/jarvis-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: modeRef.current,
+        persona: personaRef.current,
+        memories: memoriesRef.current,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "This is a screenshot of the user's screen. Explain what is on it and help with whatever they appear to be doing. Two or three short spoken sentences.",
+              },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Screen ${res.status}`);
+    const data = (await res.json()) as { reply?: string };
+    const reply = (data.reply ?? "").trim();
+    if (reply) {
+      setMessages((m) => [...m, { role: "assistant", content: reply, ts: Date.now() }]);
+      void persistTurn("assistant", reply);
+      try { await speak(reply); } catch { /* noop */ }
+    }
+    return reply;
+  }, [persistTurn]);
+
+  const analyzeFrame = useCallback(async (dataUrl: string) => {
+
+    const res = await fetch("/api/jarvis-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: modeRef.current,
+        persona: personaRef.current,
         messages: [
           {
             role: "user",
@@ -663,36 +828,102 @@ function JarvisPage() {
 
   // Free, offline fallback voice: the browser's built-in speech synthesis.
   // Used whenever the hosted TTS is unavailable (quota/credits/rate limits).
+  // ── Barge-in (talk over JARVIS) ────────────────────────────────────────
+  // While a reply is being spoken we keep a light mic monitor running. When
+  // the user starts talking, playback stops instantly and we go back to
+  // listening — like interrupting a person mid-sentence.
+  const bargeInRef = useRef<(() => void) | null>(null);
+  const startBargeInMonitor = useCallback(async (onInterrupt: () => void) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const AC: typeof AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let frames = 0;
+      let raf = 0;
+      let stopped = false;
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        cancelAnimationFrame(raf);
+        stream.getTracks().forEach((t) => t.stop());
+        void ctx.close().catch(() => {});
+        bargeInRef.current = null;
+      };
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const lvl = Math.sqrt(sum / data.length) * 3;
+        // Higher threshold than normal VAD so speaker bleed doesn't trigger it.
+        if (lvl > 0.3) {
+          frames += 1;
+          if (frames >= 6) {
+            stop();
+            onInterrupt();
+            return;
+          }
+        } else {
+          frames = Math.max(0, frames - 1);
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+      bargeInRef.current = stop;
+      return stop;
+    } catch {
+      return () => {};
+    }
+  }, []);
+
+  // Free, offline fallback voice: the browser's built-in speech synthesis.
   const speakWithBrowser = (text: string) =>
     new Promise<void>((resolve) => {
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
       if (!synth) return resolve();
       try {
         synth.cancel();
+        const p = resolvePersona(personaRef.current);
         const u = new SpeechSynthesisUtterance(text);
         const voices = synth.getVoices();
+        const langRe = new RegExp(p.fallback.lang, "i");
         const preferred =
-          voices.find((v) => /en-GB/i.test(v.lang) && /male|daniel|arthur|george/i.test(v.name)) ||
-          voices.find((v) => /en-GB/i.test(v.lang)) ||
+          voices.find((v) => langRe.test(v.lang) && p.fallback.match.test(v.name)) ||
+          voices.find((v) => p.fallback.match.test(v.name) && /^en/i.test(v.lang)) ||
+          voices.find((v) => langRe.test(v.lang)) ||
           voices.find((v) => /^en/i.test(v.lang));
         if (preferred) u.voice = preferred;
-        u.lang = preferred?.lang || "en-GB";
+        u.lang = preferred?.lang || p.fallback.lang;
         u.rate = Math.min(1.2, Math.max(0.7, voiceSpeedRef.current || 0.95));
         u.pitch = Math.min(2, Math.max(0.4, 1 + (voicePitchRef.current || 0) * 0.15));
         let done = false;
         const finish = () => { if (!done) { done = true; setLevel(0); resolve(); } };
-        u.onend = finish;
-        u.onerror = finish;
         // Crude but effective level animation while the browser voice speaks.
         const iv = setInterval(() => setLevel(0.25 + Math.random() * 0.35), 120);
         const clear = () => { clearInterval(iv); finish(); };
         u.onend = clear;
         u.onerror = clear;
+        void startBargeInMonitor(() => {
+          try { synth.cancel(); } catch { /* noop */ }
+          clear();
+        });
         synth.speak(u);
       } catch {
         resolve();
       }
     });
+
 
   const speak = async (text: string) => {
     if (!voiceRepliesRef.current) return;
@@ -709,6 +940,7 @@ function JarvisPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
+          persona: personaRef.current,
           speed: voiceSpeedRef.current,
           pitch: voicePitchRef.current,
         }),
@@ -764,17 +996,26 @@ function JarvisPage() {
       console.warn("[jarvis] WebAudio analyser wiring failed, playing raw audio", err);
     }
 
+    let interrupted = false;
     await new Promise<void>((resolve) => {
-      audio.onended = () => resolve();
-      audio.onerror = () => resolve();
+      let settled = false;
+      const finish = () => { if (!settled) { settled = true; resolve(); } };
+      audio.onended = finish;
+      audio.onerror = finish;
+      void startBargeInMonitor(() => {
+        interrupted = true;
+        try { audio.pause(); } catch { /* noop */ }
+        finish();
+      });
       const p = audio.play();
       if (p && typeof p.catch === "function") {
         p.catch((err) => {
           console.warn("[jarvis] audio.play() blocked or failed", err);
-          resolve();
+          finish();
         });
       }
     });
+    bargeInRef.current?.();
     if (raf) cancelAnimationFrame(raf);
     setLevel(0);
     URL.revokeObjectURL(url);
@@ -785,7 +1026,65 @@ function JarvisPage() {
         /* noop */
       }
     }
+    if (interrupted) setStatus("Go ahead, I'm listening…");
   };
+
+  // ── Wake word: "Hey JARVIS" ──────────────────────────────────────────
+  // A low-cost background recogniser runs only while idle. As soon as the
+  // phrase is heard it hands the microphone over to the normal capture loop.
+  useEffect(() => {
+    if (!user || !wakeWord) return;
+    if (state !== "idle") return;
+    if (liveVoiceOpen || liveVisionOpen || screenShareOpen) return;
+    const SR =
+      (window as unknown as { SpeechRecognition?: new () => WakeRecognition }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => WakeRecognition })
+        .webkitSpeechRecognition;
+    if (!SR) return;
+
+    let stopped = false;
+    let rec: WakeRecognition | null = null;
+    let restart: ReturnType<typeof setTimeout> | null = null;
+
+    const begin = () => {
+      if (stopped) return;
+      try {
+        rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        rec.onresult = (e: WakeRecognitionEvent) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const heard = e.results[i][0].transcript.toLowerCase();
+            if (/\b(hey|hi|ok|okay)[\s,]*(jarvis|friday|veronica|edith|jarvi[cs])\b/.test(heard)) {
+              stopped = true;
+              try { rec?.stop(); } catch { /* noop */ }
+              setStatus("Yes? Listening…");
+              void startListening();
+              return;
+            }
+          }
+        };
+        rec.onerror = () => {
+          if (!stopped) restart = setTimeout(begin, 1500);
+        };
+        rec.onend = () => {
+          if (!stopped) restart = setTimeout(begin, 600);
+        };
+        rec.start();
+      } catch {
+        /* wake word unavailable on this browser */
+      }
+    };
+    begin();
+
+    return () => {
+      stopped = true;
+      if (restart) clearTimeout(restart);
+      try { rec?.stop(); } catch { /* noop */ }
+    };
+  }, [user, wakeWord, state, liveVoiceOpen, liveVisionOpen, screenShareOpen, startListening]);
+
 
   const busy = state === "thinking" || state === "speaking";
   const onTap = () => {
@@ -848,8 +1147,14 @@ function JarvisPage() {
           <div className="ml-1 h-2 w-2 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
         </div>
 
-        {/* Right cluster: Live Vision + profile avatar */}
+        {/* Right cluster: active persona + Live Vision */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/30 bg-card/50 px-3 py-1.5 backdrop-blur sm:flex">
+            <span className="h-1.5 w-1.5 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)]" />
+            <span className="font-hud text-[9px] tracking-[0.22em] text-[color:var(--jarvis-cyan)] text-glow">
+              {resolvePersona(persona).label}
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => setLiveVisionOpen(true)}
@@ -859,21 +1164,8 @@ function JarvisPage() {
           >
             <Camera className="h-[18px] w-[18px]" />
           </button>
-          <button
-            type="button"
-            onClick={() => setProfileSheetOpen(true)}
-            aria-label="Open profile menu"
-            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/20 active:scale-95"
-          >
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.name} className="h-full w-full object-cover" />
-            ) : (
-              <span className="font-hud text-xs font-bold text-glow">
-                {(user.name || user.email).trim().charAt(0).toUpperCase()}
-              </span>
-            )}
-          </button>
         </div>
+
       </header>
 
       <JarvisSidebar
@@ -911,10 +1203,21 @@ function JarvisPage() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenVoiceMode={() => setLiveVoiceOpen(true)}
         onOpenLiveVision={() => setLiveVisionOpen(true)}
+        onOpenScreenShare={() => setScreenShareOpen(true)}
+        onOpenStorage={() => setStorageOpen(true)}
         pinEnabled={pinEnabled}
         onTogglePin={() => (pinEnabled ? disablePin() : setPinSetupOpen(true))}
         onSignOut={() => { void supabase.auth.signOut(); }}
       />
+
+      <JarvisStorageSheet open={storageOpen} onOpenChange={setStorageOpen} />
+
+      <JarvisScreenShare
+        open={screenShareOpen}
+        onClose={() => setScreenShareOpen(false)}
+        onFrame={analyzeScreen}
+      />
+
 
       <JarvisWorkspace
         view={workspaceView}
@@ -949,6 +1252,10 @@ function JarvisPage() {
         setTheme={setTheme}
         incognito={incognito}
         setIncognito={setIncognito}
+        persona={persona}
+        setPersona={setPersona}
+        wakeWord={wakeWord}
+        setWakeWord={setWakeWord}
         voiceSpeed={voiceSpeed}
         setVoiceSpeed={setVoiceSpeed}
         voicePitch={voicePitch}
@@ -1796,6 +2103,10 @@ function SettingsMenu({
   setTheme,
   incognito,
   setIncognito,
+  persona,
+  setPersona,
+  wakeWord,
+  setWakeWord,
   voiceSpeed,
   setVoiceSpeed,
   voicePitch,
@@ -1807,6 +2118,10 @@ function SettingsMenu({
   setTheme: (t: "dark" | "light") => void;
   incognito: boolean;
   setIncognito: (v: boolean) => void;
+  persona: PersonaId;
+  setPersona: (p: PersonaId) => void;
+  wakeWord: boolean;
+  setWakeWord: (v: boolean) => void;
   voiceSpeed: number;
   setVoiceSpeed: (v: number) => void;
   voicePitch: number;
@@ -1890,6 +2205,56 @@ function SettingsMenu({
                   LIGHT
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Voice persona */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ VOICE PERSONA
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {PERSONA_LIST.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPersona(p.id)}
+                  className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                    persona === p.id
+                      ? "border-[color:var(--jarvis-cyan)] bg-[color:var(--jarvis-cyan)]/15"
+                      : "border-border/60 hover:border-[color:var(--jarvis-cyan)]/50"
+                  }`}
+                >
+                  <div
+                    className={`font-hud text-[11px] tracking-widest ${
+                      persona === p.id
+                        ? "text-[color:var(--jarvis-cyan)] text-glow"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {p.label}
+                  </div>
+                  <div className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                    {p.tagline}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Wake word */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ WAKE WORD
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm text-foreground">Say “Hey JARVIS”</span>
+                <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
+                  HANDS-FREE ACTIVATION
+                </span>
+              </div>
+              <Switch checked={wakeWord} onCheckedChange={setWakeWord} aria-label="Toggle wake word" />
             </div>
           </div>
 

@@ -21,9 +21,16 @@ export const Route = createFileRoute("/api/generate-image")({
             Authorization: `Bearer ${key}`,
             "Content-Type": "application/json",
           },
+          // Gemini image models take the chat-completions image shape.
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash-image",
-            prompt: `A high quality, photorealistic image of ${prompt.trim()}.`,
+            model: "google/gemini-3.1-flash-image",
+            messages: [
+              {
+                role: "user",
+                content: `A high quality, highly detailed image of ${prompt.trim()}.`,
+              },
+            ],
+            modalities: ["image", "text"],
           }),
         });
 
@@ -36,19 +43,21 @@ export const Route = createFileRoute("/api/generate-image")({
         }
 
         const data = (await upstream.json()) as {
-          data?: Array<{ b64_json?: string }>;
+          data?: Array<{ b64_json?: string; url?: string }>;
         };
-        const b64 = data.data?.[0]?.b64_json;
-        if (!b64) {
+        const first = data.data?.[0];
+        const image = first?.b64_json
+          ? `data:image/png;base64,${first.b64_json}`
+          : first?.url;
+        if (!image) {
           return new Response(JSON.stringify({ error: "No image returned" }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });
         }
-        return new Response(
-          JSON.stringify({ image: `data:image/png;base64,${b64}` }),
-          { headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ image }), {
+          headers: { "Content-Type": "application/json" },
+        });
       },
     },
   },

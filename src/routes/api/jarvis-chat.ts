@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { ChatMessage, ContentBlock } from "@/lib/omniroute/router.server";
+import { resolvePersona } from "@/lib/jarvisPersonas";
 
-
-const BASE_PROMPT = `You are JARVIS, a highly advanced AI assistant inspired by Tony Stark's assistant from Iron Man. You are witty, elegant, precise, and slightly formal — call the user "sir" occasionally.
+const BASE_PROMPT = `You are an advanced AI assistant inspired by Tony Stark's assistant from Iron Man. You are witty, elegant and precise.
 
 CRITICAL LANGUAGE RULE:
 - Detect the language of the user's message.
@@ -15,18 +15,51 @@ When the user attaches an image, analyze it carefully and answer questions about
 Keep replies concise (1-3 short sentences) since they will be spoken aloud. No markdown, no emojis, no lists — just spoken prose.`;
 
 const MODE_PROMPTS: Record<string, string> = {
-  general: `${BASE_PROMPT}\n\nMODE: GENERAL. Be a helpful, polite, and efficient AI voice assistant with a balanced tone across everyday topics.`,
-  developer: `${BASE_PROMPT}\n\nMODE: DEVELOPER. Focus on software engineering, debugging, and technical problem solving. Provide direct, correct code snippets when useful. For code, you may use short fenced code blocks even though replies stay concise.`,
-  creative: `${BASE_PROMPT}\n\nMODE: CREATIVE. Be highly imaginative, conversational, and offer unique perspectives, metaphors, and ideas for brainstorming.`,
+  general: "MODE: GENERAL. Be a helpful, polite, and efficient AI voice assistant with a balanced tone across everyday topics.",
+  developer:
+    "MODE: DEVELOPER. Focus on software engineering, debugging, and technical problem solving. Provide direct, correct code snippets when useful.",
+  creative:
+    "MODE: CREATIVE. Be highly imaginative, conversational, and offer unique perspectives, metaphors, and ideas for brainstorming.",
 };
+
+function lastUserText(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    if (typeof m.content === "string") return m.content;
+    return (m.content as ContentBlock[])
+      .filter((c) => c.type === "text")
+      .map((c) => (c as { text: string }).text)
+      .join(" ");
+  }
+  return "";
+}
 
 export const Route = createFileRoute("/api/jarvis-chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { messages?: ChatMessage[]; mode?: string };
+        const body = (await request.json()) as {
+          messages?: ChatMessage[];
+          mode?: string;
+          persona?: string;
+          memories?: string[];
+          grounding?: boolean;
+        };
         const history = Array.isArray(body.messages) ? body.messages : [];
-        const systemPrompt = MODE_PROMPTS[body.mode ?? "general"] ?? MODE_PROMPTS.general;
+        const persona = resolvePersona(body.persona);
+        const mode = MODE_PROMPTS[body.mode ?? "general"] ?? MODE_PROMPTS.general;
+
+        const sections = [BASE_PROMPT, persona.personality, mode];
+
+        const memories = (body.memories ?? []).filter((m) => typeof m === "string" && m.trim());
+        if (memories.length) {
+          sections.push(
+            `LONG-TERM MEMORY about this user (remember and use naturally, never recite the whole list):\n- ${memories
+              .slice(0, 40)
+              .join("\n- ")}`,
+          );
+        }
 
         // If any message carries an image, route to a vision-capable model tier.
         const hasImage = history.some(
@@ -35,13 +68,26 @@ export const Route = createFileRoute("/api/jarvis-chat")({
             (m.content as ContentBlock[]).some((c) => c.type === "image_url"),
         );
 
+        // ── Web-search grounding ──────────────────────────────────────────
+        const query = lastUserText(history).trim();
+        if (!hasImage && query && body.grounding !== false) {
+          const { needsGrounding, webSearch, formatGrounding } = await import(
+            "@/lib/websearch.server"
+          );
+          if (body.grounding === true || needsGrounding(query)) {
+            const results = await webSearch(query);
+            const block = formatGrounding(query, results);
+            if (block) sections.push(block);
+          }
+        }
+
         const { routeChatCompletion, OmniRouteError } = await import(
           "@/lib/omniroute/router.server"
         );
 
         try {
           const result = await routeChatCompletion({
-            messages: [{ role: "system", content: systemPrompt }, ...history],
+            messages: [{ role: "system", content: sections.join("\n\n") }, ...history],
             tier: hasImage ? "vision" : "text",
             routeKey: hasImage ? "chat:vision" : "chat",
           });
@@ -62,7 +108,6 @@ export const Route = createFileRoute("/api/jarvis-chat")({
           });
         }
       },
-
     },
   },
 });
