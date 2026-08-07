@@ -536,7 +536,6 @@ function JarvisPage() {
             { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() },
           ]);
           attachReplyToHistory(historyId, reply);
-      void persistTurn("assistant", reply);
           void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
@@ -654,7 +653,6 @@ function JarvisPage() {
           const reply = `Here is your image of ${imgPrompt}, sir.`;
           setMessages((m) => [...m, { role: "assistant", content: reply, imageUrl: data.image, ts: Date.now() }]);
           attachReplyToHistory(historyId, reply);
-      void persistTurn("assistant", reply);
           void persistTurn("assistant", reply, data.image);
           setState("speaking");
           setStatus("Rendering…");
