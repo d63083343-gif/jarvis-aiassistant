@@ -1112,8 +1112,14 @@ function JarvisPage() {
           <div className="ml-1 h-2 w-2 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
         </div>
 
-        {/* Right cluster: Live Vision + profile avatar */}
+        {/* Right cluster: active persona + Live Vision */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="hidden items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/30 bg-card/50 px-3 py-1.5 backdrop-blur sm:flex">
+            <span className="h-1.5 w-1.5 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)]" />
+            <span className="font-hud text-[9px] tracking-[0.22em] text-[color:var(--jarvis-cyan)] text-glow">
+              {resolvePersona(persona).label}
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => setLiveVisionOpen(true)}
@@ -1123,21 +1129,8 @@ function JarvisPage() {
           >
             <Camera className="h-[18px] w-[18px]" />
           </button>
-          <button
-            type="button"
-            onClick={() => setProfileSheetOpen(true)}
-            aria-label="Open profile menu"
-            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/20 active:scale-95"
-          >
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.name} className="h-full w-full object-cover" />
-            ) : (
-              <span className="font-hud text-xs font-bold text-glow">
-                {(user.name || user.email).trim().charAt(0).toUpperCase()}
-              </span>
-            )}
-          </button>
         </div>
+
       </header>
 
       <JarvisSidebar
