@@ -1252,6 +1252,10 @@ function JarvisPage() {
         setTheme={setTheme}
         incognito={incognito}
         setIncognito={setIncognito}
+        persona={persona}
+        setPersona={setPersona}
+        wakeWord={wakeWord}
+        setWakeWord={setWakeWord}
         voiceSpeed={voiceSpeed}
         setVoiceSpeed={setVoiceSpeed}
         voicePitch={voicePitch}
@@ -2099,6 +2103,10 @@ function SettingsMenu({
   setTheme,
   incognito,
   setIncognito,
+  persona,
+  setPersona,
+  wakeWord,
+  setWakeWord,
   voiceSpeed,
   setVoiceSpeed,
   voicePitch,
@@ -2110,6 +2118,10 @@ function SettingsMenu({
   setTheme: (t: "dark" | "light") => void;
   incognito: boolean;
   setIncognito: (v: boolean) => void;
+  persona: PersonaId;
+  setPersona: (p: PersonaId) => void;
+  wakeWord: boolean;
+  setWakeWord: (v: boolean) => void;
   voiceSpeed: number;
   setVoiceSpeed: (v: number) => void;
   voicePitch: number;
@@ -2193,6 +2205,56 @@ function SettingsMenu({
                   LIGHT
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Voice persona */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ VOICE PERSONA
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {PERSONA_LIST.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPersona(p.id)}
+                  className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                    persona === p.id
+                      ? "border-[color:var(--jarvis-cyan)] bg-[color:var(--jarvis-cyan)]/15"
+                      : "border-border/60 hover:border-[color:var(--jarvis-cyan)]/50"
+                  }`}
+                >
+                  <div
+                    className={`font-hud text-[11px] tracking-widest ${
+                      persona === p.id
+                        ? "text-[color:var(--jarvis-cyan)] text-glow"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {p.label}
+                  </div>
+                  <div className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                    {p.tagline}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Wake word */}
+          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
+            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
+              ◢ WAKE WORD
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm text-foreground">Say “Hey JARVIS”</span>
+                <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
+                  HANDS-FREE ACTIVATION
+                </span>
+              </div>
+              <Switch checked={wakeWord} onCheckedChange={setWakeWord} aria-label="Toggle wake word" />
             </div>
           </div>
 
