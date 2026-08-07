@@ -10,33 +10,115 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
+import { Route as ApiJarvisChatRouteImport } from './routes/api/jarvis-chat'
+import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
+import { Route as ApiChatTitleRouteImport } from './routes/api/chat-title'
+import { Route as ApiAiHealthRouteImport } from './routes/api/ai-health'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJarvisChatRoute = ApiJarvisChatRouteImport.update({
+  id: '/api/jarvis-chat',
+  path: '/api/jarvis-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
+  id: '/api/generate-image',
+  path: '/api/generate-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatTitleRoute = ApiChatTitleRouteImport.update({
+  id: '/api/chat-title',
+  path: '/api/chat-title',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiHealthRoute = ApiAiHealthRouteImport.update({
+  id: '/api/ai-health',
+  path: '/api/ai-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/ai-health': typeof ApiAiHealthRoute
+  '/api/chat-title': typeof ApiChatTitleRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/jarvis-chat': typeof ApiJarvisChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/ai-health': typeof ApiAiHealthRoute
+  '/api/chat-title': typeof ApiChatTitleRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/jarvis-chat': typeof ApiJarvisChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/ai-health': typeof ApiAiHealthRoute
+  '/api/chat-title': typeof ApiChatTitleRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/jarvis-chat': typeof ApiJarvisChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/ai-health'
+    | '/api/chat-title'
+    | '/api/generate-image'
+    | '/api/jarvis-chat'
+    | '/api/stt'
+    | '/api/tts'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/ai-health'
+    | '/api/chat-title'
+    | '/api/generate-image'
+    | '/api/jarvis-chat'
+    | '/api/stt'
+    | '/api/tts'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/ai-health'
+    | '/api/chat-title'
+    | '/api/generate-image'
+    | '/api/jarvis-chat'
+    | '/api/stt'
+    | '/api/tts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAiHealthRoute: typeof ApiAiHealthRoute
+  ApiChatTitleRoute: typeof ApiChatTitleRoute
+  ApiGenerateImageRoute: typeof ApiGenerateImageRoute
+  ApiJarvisChatRoute: typeof ApiJarvisChatRoute
+  ApiSttRoute: typeof ApiSttRoute
+  ApiTtsRoute: typeof ApiTtsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +130,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/jarvis-chat': {
+      id: '/api/jarvis-chat'
+      path: '/api/jarvis-chat'
+      fullPath: '/api/jarvis-chat'
+      preLoaderRoute: typeof ApiJarvisChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/generate-image': {
+      id: '/api/generate-image'
+      path: '/api/generate-image'
+      fullPath: '/api/generate-image'
+      preLoaderRoute: typeof ApiGenerateImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-title': {
+      id: '/api/chat-title'
+      path: '/api/chat-title'
+      fullPath: '/api/chat-title'
+      preLoaderRoute: typeof ApiChatTitleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-health': {
+      id: '/api/ai-health'
+      path: '/api/ai-health'
+      fullPath: '/api/ai-health'
+      preLoaderRoute: typeof ApiAiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAiHealthRoute: ApiAiHealthRoute,
+  ApiChatTitleRoute: ApiChatTitleRoute,
+  ApiGenerateImageRoute: ApiGenerateImageRoute,
+  ApiJarvisChatRoute: ApiJarvisChatRoute,
+  ApiSttRoute: ApiSttRoute,
+  ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
