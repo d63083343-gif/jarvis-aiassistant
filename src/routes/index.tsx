@@ -71,6 +71,22 @@ export const Route = createFileRoute("/")({
   component: JarvisPage,
 });
 
+/** Minimal Web Speech API surface used for wake-word detection. */
+type WakeRecognitionEvent = {
+  resultIndex: number;
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+type WakeRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: WakeRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 type Msg = { role: "user" | "assistant"; content: string; ts: number; imageUrl?: string };
 type State = "idle" | "listening" | "thinking" | "speaking";
 type HistoryItem = { id: string; query: string; reply?: string; title?: string; ts: number };
@@ -986,13 +1002,13 @@ function JarvisPage() {
     if (state !== "idle") return;
     if (liveVoiceOpen || liveVisionOpen || screenShareOpen) return;
     const SR =
-      (window as unknown as { SpeechRecognition?: new () => SpeechRecognition }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognition })
+      (window as unknown as { SpeechRecognition?: new () => WakeRecognition }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => WakeRecognition })
         .webkitSpeechRecognition;
     if (!SR) return;
 
     let stopped = false;
-    let rec: SpeechRecognition | null = null;
+    let rec: WakeRecognition | null = null;
     let restart: ReturnType<typeof setTimeout> | null = null;
 
     const begin = () => {
@@ -1002,7 +1018,7 @@ function JarvisPage() {
         rec.continuous = true;
         rec.interimResults = true;
         rec.lang = "en-US";
-        rec.onresult = (e: SpeechRecognitionEvent) => {
+        rec.onresult = (e: WakeRecognitionEvent) => {
           for (let i = e.resultIndex; i < e.results.length; i++) {
             const heard = e.results[i][0].transcript.toLowerCase();
             if (/\b(hey|hi|ok|okay)[\s,]*(jarvis|friday|veronica|edith|jarvi[cs])\b/.test(heard)) {
