@@ -160,7 +160,7 @@ export function JarvisLogin() {
           </div>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            {true && (
+            {mode !== "new-key" && (
               <div>
                 <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
                   OPERATOR ID
@@ -173,16 +173,16 @@ export function JarvisLogin() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tony@stark.industries"
                   className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/50 focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
-                  disabled={loading}
+                  disabled={loading || mode === "otp"}
                 />
               </div>
             )}
 
-            {(mode === "signin" || mode === "signup") && (
+            {(mode === "signin" || mode === "signup" || mode === "new-key") && (
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="font-hud block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
-                    ACCESS KEY
+                    {mode === "new-key" ? "NEW ACCESS KEY" : "ACCESS KEY"}
                   </label>
                   {mode === "signin" && (
                     <button
@@ -196,7 +196,7 @@ export function JarvisLogin() {
                 </div>
                 <input
                   type="password"
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -206,12 +206,32 @@ export function JarvisLogin() {
               </div>
             )}
 
+            {mode === "otp" && (
+              <div>
+                <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
+                  ACCESS CODE
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-center text-lg tracking-[0.6em] text-foreground outline-none transition placeholder:text-muted-foreground/50 focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             {mode === "forgot-email" && (
               <p className="text-center text-[11px] text-muted-foreground">
-                Enter your registered e-mail and we'll transmit a secure magical
-                sign-in link.
+                Enter your registered e-mail and we'll transmit a secure 6-digit
+                access code.
               </p>
             )}
+
 
 
             {error && (
