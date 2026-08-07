@@ -44,6 +44,8 @@ export function JarvisProfileSheet({
   onOpenSettings,
   onOpenVoiceMode,
   onOpenLiveVision,
+  onOpenScreenShare,
+  onOpenStorage,
   pinEnabled,
   onTogglePin,
   onSignOut,
@@ -58,10 +60,13 @@ export function JarvisProfileSheet({
   onOpenSettings: () => void;
   onOpenVoiceMode: () => void;
   onOpenLiveVision: () => void;
+  onOpenScreenShare: () => void;
+  onOpenStorage: () => void;
   pinEnabled: boolean;
   onTogglePin: () => void;
   onSignOut: () => void;
 }) {
+
   const [helpOpen, setHelpOpen] = useState(false);
   const initial = (user.name || user.email || "?").trim().charAt(0).toUpperCase();
 
