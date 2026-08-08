@@ -21,15 +21,11 @@ import {
 } from "./health.server";
 import { registerFallback, resolveFallbackChain } from "./fallbackPolicy";
 import { availableProviders, type ProviderConfig } from "./providers.server";
+import { buildRequest, extractContent } from "./formats.server";
+import type { ChatMessage, ContentBlock } from "./formats.server";
 
-export type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+export type { ChatMessage, ContentBlock };
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string | ContentBlock[];
-};
 
 export type RouteOptions = {
   messages: ChatMessage[];
@@ -171,27 +167,16 @@ export async function routeChatCompletion(options: RouteOptions): Promise<RouteR
       const startedAt = Date.now();
       const { signal, cleanup, timedOut } = combineSignals(options.signal, timeoutMs);
       try {
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            ...(provider.extraHeaders ?? {}),
-          },
-          body: JSON.stringify({
-            model,
-            messages: options.messages,
-            ...(provider.extraBody ?? {}),
-          }),
+        const { url, init } = buildRequest(provider, model, options.messages);
+        const res = await fetch(url, {
+          ...init,
           signal,
         });
 
         if (res.ok) {
-          const data = (await res.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const content = data.choices?.[0]?.message?.content ?? "";
+          const content = extractContent(provider, await res.json());
           const latencyMs = Date.now() - startedAt;
+
           if (!content.trim()) {
             // Empty completion: treat as a soft failure and try the next provider.
             recordFailure(provider.id, { status: 200, error: "empty completion" });
@@ -258,20 +243,11 @@ export async function checkProviders(timeoutMs = 8000) {
       const startedAt = Date.now();
       const { signal, cleanup, timedOut } = combineSignals(null, timeoutMs);
       try {
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            ...(provider.extraHeaders ?? {}),
-          },
-          body: JSON.stringify({
-            model: provider.utilityModel,
-            messages: [{ role: "user", content: "ping" }],
-            ...(provider.extraBody ?? {}),
-          }),
-          signal,
-        });
+        const { url, init } = buildRequest(provider, provider.utilityModel, [
+          { role: "user", content: "ping" },
+        ]);
+        const res = await fetch(url, { ...init, signal });
+
         const latencyMs = Date.now() - startedAt;
         if (res.ok) {
           recordSuccess(provider.id, latencyMs);

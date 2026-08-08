@@ -9,20 +9,30 @@ export const Route = createFileRoute("/api/ai-health")({
     handlers: {
       GET: async ({ request }) => {
         const probe = new URL(request.url).searchParams.get("probe") === "1";
-        const [{ healthSnapshot }, { checkProviders }, { availableProviders }] =
+        const [{ healthSnapshot }, { checkProviders }, { availableProviders, catalogStats }] =
           await Promise.all([
             import("@/lib/omniroute/health.server"),
             import("@/lib/omniroute/router.server"),
             import("@/lib/omniroute/providers.server"),
           ]);
 
-        const configured = availableProviders().map((p) => ({ id: p.id, label: p.label }));
+        const configured = availableProviders().map((p) => ({
+          id: p.id,
+          label: p.label,
+          format: p.format,
+          textModel: p.textModel,
+        }));
         const probes = probe ? await checkProviders() : undefined;
 
         return new Response(
-          JSON.stringify({ configured, health: healthSnapshot(), probes }, null, 2),
+          JSON.stringify(
+            { catalog: catalogStats(), configured, health: healthSnapshot(), probes },
+            null,
+            2,
+          ),
           { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } },
         );
+
       },
     },
   },
