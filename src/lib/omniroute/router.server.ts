@@ -21,15 +21,11 @@ import {
 } from "./health.server";
 import { registerFallback, resolveFallbackChain } from "./fallbackPolicy";
 import { availableProviders, type ProviderConfig } from "./providers.server";
+import { buildRequest, extractContent } from "./formats.server";
+import type { ChatMessage, ContentBlock } from "./formats.server";
 
-export type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+export type { ChatMessage, ContentBlock };
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string | ContentBlock[];
-};
 
 export type RouteOptions = {
   messages: ChatMessage[];
