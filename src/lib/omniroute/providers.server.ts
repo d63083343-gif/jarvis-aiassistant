@@ -88,21 +88,39 @@ function apiKeyFor(entry: OmniRegistryEntry): string {
 
 const UTILITY_HINT = /(lite|mini|flash|small|instant|8b|7b|nano|turbo|haiku)/i;
 
+/**
+ * Sensible defaults for the providers JARVIS leans on, so the chain doesn't
+ * pick a heavy preview model just because it sits first in the catalog.
+ * Everything stays overridable through OMNIROUTE_MODEL_* env vars.
+ */
+const PREFERRED_MODELS: Record<string, { text?: string; vision?: string; utility?: string }> = {
+  gemini: {
+    text: "gemini-2.5-flash",
+    vision: "gemini-2.5-flash",
+    utility: "gemini-2.5-flash-lite",
+  },
+};
+
 function pickModels(entry: OmniRegistryEntry) {
   const suffix = envSuffix(entry.id);
   const models = entry.models;
+  const has = (id?: string) => (id && models.some((m) => m.id === id) ? id : undefined);
+  const preferred = PREFERRED_MODELS[entry.id] ?? {};
   const text =
-    env(`OMNIROUTE_MODEL_${suffix}`) || models[0]?.id || "";
+    env(`OMNIROUTE_MODEL_${suffix}`) || has(preferred.text) || models[0]?.id || "";
   const vision =
     env(`OMNIROUTE_VISION_MODEL_${suffix}`) ||
+    has(preferred.vision) ||
     models.find((m) => m.supportsVision)?.id ||
     text;
   const utility =
     env(`OMNIROUTE_UTILITY_MODEL_${suffix}`) ||
+    has(preferred.utility) ||
     models.find((m) => UTILITY_HINT.test(m.id))?.id ||
     text;
   return { text, vision, utility };
 }
+
 
 function toConfig(entry: OmniRegistryEntry): ProviderConfig | null {
   const apiKey = apiKeyFor(entry);
