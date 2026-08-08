@@ -167,27 +167,16 @@ export async function routeChatCompletion(options: RouteOptions): Promise<RouteR
       const startedAt = Date.now();
       const { signal, cleanup, timedOut } = combineSignals(options.signal, timeoutMs);
       try {
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            ...(provider.extraHeaders ?? {}),
-          },
-          body: JSON.stringify({
-            model,
-            messages: options.messages,
-            ...(provider.extraBody ?? {}),
-          }),
+        const { url, init } = buildRequest(provider, model, options.messages);
+        const res = await fetch(url, {
+          ...init,
           signal,
         });
 
         if (res.ok) {
-          const data = (await res.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const content = data.choices?.[0]?.message?.content ?? "";
+          const content = extractContent(provider, await res.json());
           const latencyMs = Date.now() - startedAt;
+
           if (!content.trim()) {
             // Empty completion: treat as a soft failure and try the next provider.
             recordFailure(provider.id, { status: 200, error: "empty completion" });
