@@ -35,10 +35,10 @@ export function JarvisLogin() {
         if (err) throw err;
         setOtp("");
         setMode("otp");
-        setInfo("A 6-DIGIT ACCESS CODE WAS TRANSMITTED TO YOUR REGISTERED E-MAIL.");
+        setInfo("A 8-DIGIT ACCESS CODE WAS TRANSMITTED TO YOUR REGISTERED E-MAIL.");
       } else if (mode === "otp") {
         const code = otp.replace(/\D/g, "");
-        if (code.length !== 6) throw new Error("Enter the 6-digit access code.");
+        if (code.length !== 8) throw new Error("Enter the 8-digit access code.");
         const { error: err } = await supabase.auth.verifyOtp({
           email: email.trim(),
           token: code,
@@ -132,7 +132,7 @@ export function JarvisLogin() {
       >
         {/* Corner brackets */}
         <div className="relative rounded-lg border border-[color:var(--jarvis-cyan)]/40 bg-card/60 p-8 backdrop-blur-xl shadow-[0_0_60px_oklch(0.5_0.12_210/0.25)]">
-          {["top-0 left-0", "top-0 right-0 rotate-90", "bottom-0 right-0 rotate-180", "bottom-0 left-0 -rotate-90"].map((cls) => (
+          {['top-0 left-0', 'top-0 right-0 rotate-90', 'bottom-0 right-0 rotate-180', 'bottom-0 left-0 -rotate-90'].map((cls) => (
             <div
               key={cls}
               className={`absolute h-6 w-6 border-l-2 border-t-2 border-[color:var(--jarvis-cyan)] ${cls}`}
@@ -172,7 +172,7 @@ export function JarvisLogin() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tony@stark.industries"
-                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/50 focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-mut[...]"
                   disabled={loading || mode === "otp"}
                 />
               </div>
@@ -200,7 +200,7 @@ export function JarvisLogin() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/50 focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-mut[...]"
                   disabled={loading}
                 />
               </div>
@@ -215,11 +215,11 @@ export function JarvisLogin() {
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  maxLength={6}
+                  maxLength={8}
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-center text-lg tracking-[0.6em] text-foreground outline-none transition placeholder:text-muted-foreground/50 focus:border-[color:var(--jarvis-cyan)] focus:shadow-[0_0_12px_oklch(0.5_0.12_210/0.4)]"
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="00000000"
+                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-center text-lg tracking-[0.6em] text-foreground outline-none tr[...]"
                   disabled={loading}
                 />
               </div>
@@ -227,7 +227,7 @@ export function JarvisLogin() {
 
             {mode === "forgot-email" && (
               <p className="text-center text-[11px] text-muted-foreground">
-                Enter your registered e-mail and we'll transmit a secure 6-digit
+                Enter your registered e-mail and we'll transmit a secure 8-digit
                 access code.
               </p>
             )}
@@ -248,7 +248,7 @@ export function JarvisLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="font-hud group relative w-full overflow-hidden rounded-md border border-[color:var(--jarvis-cyan)]/60 bg-[color:var(--jarvis-cyan)]/10 py-2.5 text-xs tracking-[0.3em] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/20 disabled:cursor-wait disabled:opacity-70"
+              className="font-hud group relative w-full overflow-hidden rounded-md border border-[color:var(--jarvis-cyan)]/60 bg-[color:var(--jarvis-cyan)]/10 py-2.5 text-xs tracking-[0.3em] tex[...]"
             >
               <span className="relative z-10">{submitLabel}</span>
               {loading && (
