@@ -243,20 +243,11 @@ export async function checkProviders(timeoutMs = 8000) {
       const startedAt = Date.now();
       const { signal, cleanup, timedOut } = combineSignals(null, timeoutMs);
       try {
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${provider.apiKey}`,
-            "Content-Type": "application/json",
-            ...(provider.extraHeaders ?? {}),
-          },
-          body: JSON.stringify({
-            model: provider.utilityModel,
-            messages: [{ role: "user", content: "ping" }],
-            ...(provider.extraBody ?? {}),
-          }),
-          signal,
-        });
+        const { url, init } = buildRequest(provider, provider.utilityModel, [
+          { role: "user", content: "ping" },
+        ]);
+        const res = await fetch(url, { ...init, signal });
+
         const latencyMs = Date.now() - startedAt;
         if (res.ok) {
           recordSuccess(provider.id, latencyMs);
