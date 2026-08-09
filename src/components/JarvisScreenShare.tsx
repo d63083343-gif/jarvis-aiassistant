@@ -145,9 +145,12 @@ export function JarvisScreenShare({
             playsInline
             className={`aspect-video w-full object-contain ${sharing ? "" : "opacity-30"}`}
           />
-          {!sharing && (
-            <div className="absolute inset-0 flex items-center justify-center text-center text-sm text-muted-foreground">
-              Start sharing to let JARVIS see your screen.
+          {!sharing && shot && (
+            <img src={shot} alt="Shared screen" className="absolute inset-0 h-full w-full object-contain" />
+          )}
+          {!sharing && !shot && (
+            <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              Start sharing to let JARVIS see your screen — or send a screenshot on mobile.
             </div>
           )}
         </div>
@@ -158,8 +161,20 @@ export function JarvisScreenShare({
           </div>
         )}
 
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            void onPickShot(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+
         <div className="flex flex-wrap items-center justify-center gap-3">
           {!sharing ? (
+            <>
             <button
               type="button"
               onClick={() => void start()}
@@ -167,6 +182,16 @@ export function JarvisScreenShare({
             >
               <MonitorUp className="h-4 w-4" /> Start sharing
             </button>
+            <button
+              type="button"
+              disabled={analyzing}
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/30 bg-background/60 px-5 py-2.5 text-sm text-muted-foreground transition hover:text-[color:var(--jarvis-cyan)] disabled:opacity-50"
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+              Send a screenshot
+            </button>
+            </>
           ) : (
             <>
               <button
