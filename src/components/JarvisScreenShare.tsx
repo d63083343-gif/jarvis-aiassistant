@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { MonitorUp, X, ScanEye, Loader2 } from "lucide-react";
+import { MonitorUp, X, ScanEye, Loader2, ImageUp } from "lucide-react";
 
 /**
  * Screen sharing — captures the user's screen/tab and lets JARVIS look at what
@@ -21,6 +21,8 @@ export function JarvisScreenShare({
   const [sharing, setSharing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [reply, setReply] = useState<string>("");
+  const [shot, setShot] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -34,7 +36,9 @@ export function JarvisScreenShare({
         getDisplayMedia?: (c: DisplayMediaStreamOptions) => Promise<MediaStream>;
       };
       if (!md?.getDisplayMedia) {
-        toast.error("Screen sharing isn't supported on this device.");
+        // Mobile browsers / Android WebView have no getDisplayMedia — fall back to
+        // picking a screenshot so the feature still works everywhere.
+        fileRef.current?.click();
         return;
       }
       const stream = await md.getDisplayMedia({ video: true, audio: false });
@@ -45,8 +49,13 @@ export function JarvisScreenShare({
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => {});
       }
-    } catch {
-      toast.error("Screen share was cancelled.");
+    } catch (err) {
+      const name = (err as { name?: string } | null)?.name;
+      if (name === "NotAllowedError") {
+        toast.error("Screen share was cancelled.");
+      } else {
+        fileRef.current?.click();
+      }
     }
   }, [stop]);
 
@@ -54,6 +63,34 @@ export function JarvisScreenShare({
     if (!open) stop();
     return () => stop();
   }, [open, stop]);
+
+  const analyzeDataUrl = async (dataUrl: string) => {
+    setAnalyzing(true);
+    try {
+      const answer = await onFrame(dataUrl);
+      setReply(answer || "I couldn't read that screen, sir.");
+    } catch {
+      toast.error("Couldn't analyse the screen.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const onPickShot = async (file: File | undefined) => {
+    if (!file) return;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("read failed"));
+      fr.readAsDataURL(file);
+    }).catch(() => null);
+    if (!dataUrl) {
+      toast.error("Couldn't read that image.");
+      return;
+    }
+    setShot(dataUrl);
+    await analyzeDataUrl(dataUrl);
+  };
 
   const analyze = async () => {
     const video = videoRef.current;
