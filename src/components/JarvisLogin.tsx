@@ -7,6 +7,7 @@ export function JarvisLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +16,13 @@ export function JarvisLogin() {
   const emailRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    // A reload always drops out of an in-flight recovery.
+    try {
+      if (sessionStorage.getItem("jarvis.recovery") === "1") {
+        sessionStorage.removeItem("jarvis.recovery");
+        void supabase.auth.signOut();
+      }
+    } catch { /* noop */ }
     const t = window.setTimeout(() => setBooted(true), 60);
     return () => window.clearTimeout(t);
   }, []);
@@ -22,6 +30,11 @@ export function JarvisLogin() {
   const resetTransientState = () => {
     setError(null);
     setInfo(null);
+  };
+
+  const abortRecovery = () => {
+    try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
+    void supabase.auth.signOut();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,6 +46,8 @@ export function JarvisLogin() {
         if (!email.trim()) throw new Error("Enter your operator ID.");
         const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim());
         if (err) throw err;
+        // Keep the app on the login screen even once the recovery session exists.
+        try { sessionStorage.setItem("jarvis.recovery", "1"); } catch { /* noop */ }
         setOtp("");
         setMode("otp");
         setInfo("A 8-DIGIT ACCESS CODE WAS TRANSMITTED TO YOUR REGISTERED E-MAIL.");
@@ -46,13 +61,31 @@ export function JarvisLogin() {
         });
         if (err) throw err;
         setPassword("");
+        setConfirmPassword("");
         setMode("new-key");
         setInfo("CODE VERIFIED. SET A NEW ACCESS KEY.");
       } else if (mode === "new-key") {
-        if (password.trim().length < 6) throw new Error("Access key must be at least 6 characters.");
+        if (password.length < 6) throw new Error("Access key must be at least 6 characters.");
+        if (password !== confirmPassword) throw new Error("Access keys do not match.");
         const { error: err } = await supabase.auth.updateUser({ password });
         if (err) throw err;
-        setInfo("ACCESS KEY UPDATED. WELCOME BACK, SIR.");
+        const targetEmail = email.trim();
+        // Re-authenticate with the new key so we know it was actually saved.
+        await supabase.auth.signOut();
+        const { error: sErr } = await supabase.auth.signInWithPassword({
+          email: targetEmail,
+          password,
+        });
+        try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
+        if (sErr) {
+          setMode("signin");
+          setPassword("");
+          setConfirmPassword("");
+          setInfo("ACCESS KEY UPDATED. SIGN IN WITH YOUR NEW KEY.");
+        } else {
+          setInfo("ACCESS KEY UPDATED. WELCOME BACK, SIR.");
+          window.location.reload();
+        }
       } else if (mode === "signup") {
         if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
         const { error: err } = await supabase.auth.signUp({
@@ -206,6 +239,23 @@ export function JarvisLogin() {
               </div>
             )}
 
+            {mode === "new-key" && (
+              <div>
+                <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
+                  CONFIRM NEW ACCESS KEY
+                </label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition"
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             {mode === "otp" && (
               <div>
                 <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
@@ -264,7 +314,7 @@ export function JarvisLogin() {
             {mode === "forgot-email" || mode === "otp" || mode === "new-key" ? (
               <button
                 type="button"
-                onClick={() => { resetTransientState(); setOtp(""); setPassword(""); setMode("signin"); }}
+                onClick={() => { resetTransientState(); abortRecovery(); setOtp(""); setPassword(""); setConfirmPassword(""); setMode("signin"); }}
                 className="font-hud w-full text-center text-[10px] tracking-widest text-muted-foreground transition hover:text-[color:var(--jarvis-cyan)]"
               >
                 ◂ RETURN TO HANDSHAKE

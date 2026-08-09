@@ -22,6 +22,7 @@ import {
   Mail,
   MonitorUp,
   HardDrive,
+  SlidersHorizontal,
 } from "lucide-react";
 
 
@@ -46,6 +47,7 @@ export function JarvisProfileSheet({
   onOpenLiveVision,
   onOpenScreenShare,
   onOpenStorage,
+  onOpenDataControls,
   pinEnabled,
   onTogglePin,
   onSignOut,
@@ -62,6 +64,7 @@ export function JarvisProfileSheet({
   onOpenLiveVision: () => void;
   onOpenScreenShare: () => void;
   onOpenStorage: () => void;
+  onOpenDataControls: () => void;
   pinEnabled: boolean;
   onTogglePin: () => void;
   onSignOut: () => void;
@@ -93,7 +96,10 @@ export function JarvisProfileSheet({
       { label: "Live Vision", Icon: Eye, run: act(onOpenLiveVision) },
       { label: "Share Screen", Icon: MonitorUp, run: act(onOpenScreenShare) },
     ],
-    [{ label: "Storage", Icon: HardDrive, run: act(onOpenStorage) }],
+    [
+      { label: "Storage", Icon: HardDrive, run: act(onOpenStorage) },
+      { label: "Data Controls", Icon: SlidersHorizontal, run: act(onOpenDataControls) },
+    ],
 
     [
       {

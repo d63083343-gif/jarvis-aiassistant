@@ -45,6 +45,7 @@ import {
   PIN_KEY,
   PIN_ENABLED_KEY,
 } from "@/components/JarvisExtras";
+import { JarvisDataControls } from "@/components/JarvisDataControls";
 import { JarvisStorageSheet } from "@/components/JarvisStorageSheet";
 import { JarvisScreenShare } from "@/components/JarvisScreenShare";
 import {
@@ -70,22 +71,6 @@ import {
 export const Route = createFileRoute("/")({
   component: JarvisPage,
 });
-
-/** Minimal Web Speech API surface used for wake-word detection. */
-type WakeRecognitionEvent = {
-  resultIndex: number;
-  results: ArrayLike<ArrayLike<{ transcript: string }>>;
-};
-type WakeRecognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((e: WakeRecognitionEvent) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
 
 type Msg = { role: "user" | "assistant"; content: string; ts: number; imageUrl?: string };
 type State = "idle" | "listening" | "thinking" | "speaking";
@@ -129,6 +114,7 @@ function JarvisPage() {
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [storageOpen, setStorageOpen] = useState(false);
   const [screenShareOpen, setScreenShareOpen] = useState(false);
+  const [dataControlsOpen, setDataControlsOpen] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView | null>(null);
 
   // ── Voice persona ────────────────────────────────────────────────────
@@ -145,17 +131,6 @@ function JarvisPage() {
     void savePersona(p);
   }, []);
   useEffect(() => { personaRef.current = persona; }, [persona]);
-
-  // ── Wake word ("Hey JARVIS") ─────────────────────────────────────────
-  const [wakeWord, setWakeWord] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("jarvis.wakeWord") !== "0";
-  });
-  const wakeWordRef = useRef(wakeWord);
-  useEffect(() => {
-    wakeWordRef.current = wakeWord;
-    try { localStorage.setItem("jarvis.wakeWord", wakeWord ? "1" : "0"); } catch { /* noop */ }
-  }, [wakeWord]);
 
   // ── Persistent memory + cloud conversation ───────────────────────────
   const memoriesRef = useRef<string[]>([]);
@@ -319,7 +294,9 @@ function JarvisPage() {
     let mounted = true;
     const applySession = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
       if (!mounted) return;
-      if (session?.user) {
+      const recovering =
+        typeof window !== "undefined" && sessionStorage.getItem("jarvis.recovery") === "1";
+      if (session?.user && !recovering) {
         const email = session.user.email ?? "operator";
         const meta = session.user.user_metadata as { full_name?: string; name?: string; avatar_url?: string } | undefined;
         const name = meta?.full_name || meta?.name || email.split("@")[0];
@@ -1029,63 +1006,6 @@ function JarvisPage() {
     if (interrupted) setStatus("Go ahead, I'm listening…");
   };
 
-  // ── Wake word: "Hey JARVIS" ──────────────────────────────────────────
-  // A low-cost background recogniser runs only while idle. As soon as the
-  // phrase is heard it hands the microphone over to the normal capture loop.
-  useEffect(() => {
-    if (!user || !wakeWord) return;
-    if (state !== "idle") return;
-    if (liveVoiceOpen || liveVisionOpen || screenShareOpen) return;
-    const SR =
-      (window as unknown as { SpeechRecognition?: new () => WakeRecognition }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => WakeRecognition })
-        .webkitSpeechRecognition;
-    if (!SR) return;
-
-    let stopped = false;
-    let rec: WakeRecognition | null = null;
-    let restart: ReturnType<typeof setTimeout> | null = null;
-
-    const begin = () => {
-      if (stopped) return;
-      try {
-        rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-US";
-        rec.onresult = (e: WakeRecognitionEvent) => {
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const heard = e.results[i][0].transcript.toLowerCase();
-            if (/\b(hey|hi|ok|okay)[\s,]*(jarvis|friday|veronica|edith|jarvi[cs])\b/.test(heard)) {
-              stopped = true;
-              try { rec?.stop(); } catch { /* noop */ }
-              setStatus("Yes? Listening…");
-              void startListening();
-              return;
-            }
-          }
-        };
-        rec.onerror = () => {
-          if (!stopped) restart = setTimeout(begin, 1500);
-        };
-        rec.onend = () => {
-          if (!stopped) restart = setTimeout(begin, 600);
-        };
-        rec.start();
-      } catch {
-        /* wake word unavailable on this browser */
-      }
-    };
-    begin();
-
-    return () => {
-      stopped = true;
-      if (restart) clearTimeout(restart);
-      try { rec?.stop(); } catch { /* noop */ }
-    };
-  }, [user, wakeWord, state, liveVoiceOpen, liveVisionOpen, screenShareOpen, startListening]);
-
-
   const busy = state === "thinking" || state === "speaking";
   const onTap = () => {
     if (busy) return;
@@ -1205,12 +1125,20 @@ function JarvisPage() {
         onOpenLiveVision={() => setLiveVisionOpen(true)}
         onOpenScreenShare={() => setScreenShareOpen(true)}
         onOpenStorage={() => setStorageOpen(true)}
+        onOpenDataControls={() => setDataControlsOpen(true)}
         pinEnabled={pinEnabled}
         onTogglePin={() => (pinEnabled ? disablePin() : setPinSetupOpen(true))}
         onSignOut={() => { void supabase.auth.signOut(); }}
       />
 
       <JarvisStorageSheet open={storageOpen} onOpenChange={setStorageOpen} />
+
+      <JarvisDataControls
+        open={dataControlsOpen}
+        onOpenChange={setDataControlsOpen}
+        incognito={incognito}
+        setIncognito={setIncognito}
+      />
 
       <JarvisScreenShare
         open={screenShareOpen}
@@ -1254,8 +1182,6 @@ function JarvisPage() {
         setIncognito={setIncognito}
         persona={persona}
         setPersona={setPersona}
-        wakeWord={wakeWord}
-        setWakeWord={setWakeWord}
         voiceSpeed={voiceSpeed}
         setVoiceSpeed={setVoiceSpeed}
         voicePitch={voicePitch}
@@ -2105,8 +2031,6 @@ function SettingsMenu({
   setIncognito,
   persona,
   setPersona,
-  wakeWord,
-  setWakeWord,
   voiceSpeed,
   setVoiceSpeed,
   voicePitch,
@@ -2120,8 +2044,6 @@ function SettingsMenu({
   setIncognito: (v: boolean) => void;
   persona: PersonaId;
   setPersona: (p: PersonaId) => void;
-  wakeWord: boolean;
-  setWakeWord: (v: boolean) => void;
   voiceSpeed: number;
   setVoiceSpeed: (v: number) => void;
   voicePitch: number;
@@ -2239,22 +2161,6 @@ function SettingsMenu({
                   </div>
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Wake word */}
-          <div className="rounded-md border border-[color:var(--jarvis-cyan)]/30 bg-[color:var(--jarvis-cyan)]/[0.03] p-4">
-            <div className="mb-3 font-hud text-[10px] tracking-widest text-[color:var(--jarvis-cyan)] text-glow">
-              ◢ WAKE WORD
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col leading-tight">
-                <span className="text-sm text-foreground">Say “Hey JARVIS”</span>
-                <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
-                  HANDS-FREE ACTIVATION
-                </span>
-              </div>
-              <Switch checked={wakeWord} onCheckedChange={setWakeWord} aria-label="Toggle wake word" />
             </div>
           </div>
 
