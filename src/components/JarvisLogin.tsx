@@ -17,7 +17,12 @@ export function JarvisLogin() {
 
   useEffect(() => {
     // A reload always drops out of an in-flight recovery.
-    try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
+    try {
+      if (sessionStorage.getItem("jarvis.recovery") === "1") {
+        sessionStorage.removeItem("jarvis.recovery");
+        void supabase.auth.signOut();
+      }
+    } catch { /* noop */ }
     const t = window.setTimeout(() => setBooted(true), 60);
     return () => window.clearTimeout(t);
   }, []);
