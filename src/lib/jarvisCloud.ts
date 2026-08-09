@@ -211,3 +211,51 @@ export async function deleteFile(file: CloudFile): Promise<void> {
   await supabase.storage.from(FILES_BUCKET).remove([file.path]);
   await supabase.from("user_files").delete().eq("id", file.id);
 }
+
+/* ── Data controls ──────────────────────────────────────────────────── */
+
+/** Full export of the signed-in user's data (profile, memories, chats, files). */
+export async function exportAllData(): Promise<Record<string, unknown>> {
+  const id = await uid();
+  if (!id) return {};
+  const [profile, memories, conversations, messages, files] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
+    supabase.from("memories").select("*").order("created_at", { ascending: false }),
+    supabase.from("conversations").select("*").order("created_at", { ascending: false }),
+    supabase.from("messages").select("*").order("created_at", { ascending: true }),
+    supabase.from("user_files").select("*").order("created_at", { ascending: false }),
+  ]);
+  return {
+    exported_at: new Date().toISOString(),
+    profile: profile.data ?? null,
+    memories: memories.data ?? [],
+    conversations: conversations.data ?? [],
+    messages: messages.data ?? [],
+    files: files.data ?? [],
+  };
+}
+
+/** Deletes every conversation and message for the signed-in user. */
+export async function deleteAllChats(): Promise<void> {
+  const id = await uid();
+  if (!id) return;
+  await supabase.from("messages").delete().eq("user_id", id);
+  await supabase.from("conversations").delete().eq("user_id", id);
+}
+
+/** Clears all long-term memories. */
+export async function clearMemories(): Promise<void> {
+  const id = await uid();
+  if (!id) return;
+  await supabase.from("memories").delete().eq("user_id", id);
+}
+
+/** Deletes every stored file (storage objects + rows). */
+export async function deleteAllFiles(): Promise<void> {
+  const id = await uid();
+  if (!id) return;
+  const { data } = await supabase.from("user_files").select("id, path").eq("user_id", id);
+  const paths = (data ?? []).map((f) => f.path as string);
+  if (paths.length) await supabase.storage.from(FILES_BUCKET).remove(paths);
+  await supabase.from("user_files").delete().eq("user_id", id);
+}
