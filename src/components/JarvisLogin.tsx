@@ -16,6 +16,8 @@ export function JarvisLogin() {
   const emailRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    // A reload always drops out of an in-flight recovery.
+    try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
     const t = window.setTimeout(() => setBooted(true), 60);
     return () => window.clearTimeout(t);
   }, []);
