@@ -46,6 +46,8 @@ export function JarvisStorageSheet({
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
   const inputRef = useRef<HTMLInputElement>(null);
+  const ingest = useServerFn(ingestKnowledgeFile);
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
