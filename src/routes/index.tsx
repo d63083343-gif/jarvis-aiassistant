@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { retrieveKnowledge } from "@/lib/rag.functions";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { JarvisOrb } from "@/components/JarvisOrb";
 import { JarvisSplash } from "@/components/JarvisSplash";
 import { JarvisLogin } from "@/components/JarvisLogin";
