@@ -629,7 +629,7 @@ function JarvisPage() {
       setState("idle");
       setStatus("Tap the core to speak");
     }
-  }, [startListening, addHistoryQuery, attachReplyToHistory]);
+  }, [startListening, addHistoryQuery, attachReplyToHistory, getKnowledge]);
 
   useEffect(() => {
     autoStopRef.current = stopListeningAndSend;
