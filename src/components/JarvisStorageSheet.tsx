@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { ingestKnowledgeFile } from "@/lib/rag.functions";
+
 import {
   Sheet,
   SheetContent,
