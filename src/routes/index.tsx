@@ -135,6 +135,20 @@ function JarvisPage() {
   // ── Persistent memory + cloud conversation ───────────────────────────
   const memoriesRef = useRef<string[]>([]);
   const conversationIdRef = useRef<string | null>(null);
+
+  // ── RAG retrieval (user-scoped; feeds context into the existing flow) ─
+  const retrieve = useServerFn(retrieveKnowledge);
+  const retrieveRef = useRef(retrieve);
+  useEffect(() => { retrieveRef.current = retrieve; }, [retrieve]);
+  const getKnowledge = useCallback(async (query: string) => {
+    try {
+      const res = await retrieveRef.current({ data: { query, topK: 5 } });
+      return res?.chunks ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const rememberFrom = useCallback((text: string) => {
     const fact = extractMemory(text);
     if (!fact || memoriesRef.current.includes(fact)) return;
