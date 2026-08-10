@@ -45,6 +45,7 @@ export const Route = createFileRoute("/api/jarvis-chat")({
           persona?: string;
           memories?: string[];
           grounding?: boolean;
+          knowledge?: Array<{ source?: string; content?: string }>;
         };
         const history = Array.isArray(body.messages) ? body.messages : [];
         const persona = resolvePersona(body.persona);
@@ -60,6 +61,23 @@ export const Route = createFileRoute("/api/jarvis-chat")({
               .join("\n- ")}`,
           );
         }
+
+        // Retrieved knowledge (RAG). Provided by the client after an
+        // authenticated, user-scoped vector search. Never fabricate beyond it.
+        const knowledge = (body.knowledge ?? [])
+          .filter((k) => typeof k?.content === "string" && k.content!.trim())
+          .slice(0, 6);
+        if (knowledge.length) {
+          sections.push(
+            `RETRIEVED KNOWLEDGE from the user's own documents. Use it when it answers the question, and mention the source name naturally if helpful. If it does not contain the answer, say you don't have it in their documents and answer from general knowledge instead — never invent document contents.\n\n${knowledge
+              .map(
+                (k, i) =>
+                  `[${i + 1}] ${k.source ?? "document"}:\n${k.content!.slice(0, 1500)}`,
+              )
+              .join("\n\n")}`,
+          );
+        }
+
 
         // If any message carries an image, route to a vision-capable model tier.
         const hasImage = history.some(
