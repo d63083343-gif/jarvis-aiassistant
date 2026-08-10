@@ -583,6 +583,8 @@ function JarvisPage() {
         return;
       }
 
+      const knowledge = await getKnowledge(userText);
+
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -591,8 +593,10 @@ function JarvisPage() {
           mode: modeRef.current,
           persona: personaRef.current,
           memories: memoriesRef.current,
+          knowledge,
         }),
       });
+
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
         if (chatRes.status === 402) throw new Error("AI credits exhausted. Add credits in Settings.");
