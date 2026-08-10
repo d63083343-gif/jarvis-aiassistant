@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { retrieveKnowledge } from "@/lib/rag.functions";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { JarvisOrb } from "@/components/JarvisOrb";
 import { JarvisSplash } from "@/components/JarvisSplash";
 import { JarvisLogin } from "@/components/JarvisLogin";
@@ -135,6 +138,20 @@ function JarvisPage() {
   // ── Persistent memory + cloud conversation ───────────────────────────
   const memoriesRef = useRef<string[]>([]);
   const conversationIdRef = useRef<string | null>(null);
+
+  // ── RAG retrieval (user-scoped; feeds context into the existing flow) ─
+  const retrieve = useServerFn(retrieveKnowledge);
+  const retrieveRef = useRef(retrieve);
+  useEffect(() => { retrieveRef.current = retrieve; }, [retrieve]);
+  const getKnowledge = useCallback(async (query: string) => {
+    try {
+      const res = await retrieveRef.current({ data: { query, topK: 5 } });
+      return res?.chunks ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const rememberFrom = useCallback((text: string) => {
     const fact = extractMemory(text);
     if (!fact || memoriesRef.current.includes(fact)) return;
@@ -566,6 +583,8 @@ function JarvisPage() {
         return;
       }
 
+      const knowledge = await getKnowledge(userText);
+
       const chatRes = await fetch("/api/jarvis-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -574,8 +593,10 @@ function JarvisPage() {
           mode: modeRef.current,
           persona: personaRef.current,
           memories: memoriesRef.current,
+          knowledge,
         }),
       });
+
       if (!chatRes.ok) {
         if (chatRes.status === 429) throw new Error("Rate limited. Try again in a moment.");
         if (chatRes.status === 402) throw new Error("AI credits exhausted. Add credits in Settings.");
@@ -608,7 +629,7 @@ function JarvisPage() {
       setState("idle");
       setStatus("Tap the core to speak");
     }
-  }, [startListening, addHistoryQuery, attachReplyToHistory]);
+  }, [startListening, addHistoryQuery, attachReplyToHistory, getKnowledge]);
 
   useEffect(() => {
     autoStopRef.current = stopListeningAndSend;
