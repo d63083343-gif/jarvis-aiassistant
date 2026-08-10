@@ -69,14 +69,29 @@ export function JarvisStorageSheet({
     if (!list?.length) return;
     setBusy(true);
     try {
+      let indexed = 0;
       for (const f of Array.from(list)) {
         if (f.size > 25 * 1024 * 1024) {
           toast.error(`${f.name} is larger than 25 MB.`);
           continue;
         }
-        await uploadFile(f);
+        const row = await uploadFile(f);
+        // Text-like documents are indexed into the knowledge base for RAG.
+        if (row) {
+          try {
+            const res = await ingest({ data: { fileId: row.id } });
+            if (res?.ok) indexed += 1;
+          } catch {
+            /* indexing is best-effort; storage still works */
+          }
+        }
       }
-      toast.success("Uploaded to your cloud storage.");
+      toast.success(
+        indexed
+          ? `Uploaded. ${indexed} document${indexed > 1 ? "s" : ""} added to JARVIS knowledge.`
+          : "Uploaded to your cloud storage.",
+      );
+
       await refresh();
     } catch {
       toast.error("Upload failed.");
