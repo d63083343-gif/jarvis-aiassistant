@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "signin" | "signup" | "forgot-email" | "otp" | "new-key";
+type Mode = "signin" | "signup" | "forgot-email" | "otp" | "new-key" | "confirm";
 
 export function JarvisLogin() {
   const [email, setEmail] = useState("");
