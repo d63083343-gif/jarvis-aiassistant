@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "signin" | "signup" | "forgot-email" | "otp" | "new-key";
+type Mode = "signin" | "signup" | "forgot-email" | "otp" | "new-key" | "confirm";
 
 export function JarvisLogin() {
   const [email, setEmail] = useState("");
@@ -79,22 +79,33 @@ export function JarvisLogin() {
         // Nudge the auth listener so the app picks up the now-active session.
         await supabase.auth.refreshSession();
 
-      } else if (mode === "signup") {
-        if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
-        const { error: err } = await supabase.auth.signUp({
+      } else if (mode === "confirm") {
+        const code = otp.replace(/\D/g, "");
+        if (code.length < 6) throw new Error("Enter the access code from your e-mail.");
+        const { data, error: err } = await supabase.auth.verifyOtp({
           email: email.trim(),
-          password,
-          options: { emailRedirectTo: window.location.origin },
+          token: code,
+          type: "signup",
         });
         if (err) throw err;
-        // Auto-confirm is enabled → try immediate sign-in for a smooth handshake.
-        const { error: sErr } = await supabase.auth.signInWithPassword({
+        if (!data.session) throw new Error("Verification failed. Request a new code.");
+        setInfo("OPERATOR VERIFIED. WELCOME, SIR.");
+      } else if (mode === "signup") {
+        if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
+        const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           password,
         });
-        if (sErr) {
-          setInfo("Operator registered. Sign in with your new credentials.");
+        if (err) throw err;
+        if (data.session) {
+          // Confirmation disabled → already signed in.
+          setInfo("OPERATOR REGISTERED. WELCOME, SIR.");
+        } else {
+          setOtp("");
+          setMode("confirm");
+          setInfo("AN ACCESS CODE WAS TRANSMITTED TO YOUR E-MAIL. ENTER IT TO ACTIVATE.");
         }
+
       } else {
         if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
         const { error: err } = await supabase.auth.signInWithPassword({
@@ -118,14 +129,18 @@ export function JarvisLogin() {
         ? "▶ SEND ACCESS CODE"
         : mode === "otp"
           ? "▶ VERIFY CODE"
-          : mode === "new-key"
-            ? "▶ SET NEW ACCESS KEY"
-            : "▶ INITIATE HANDSHAKE";
+          : mode === "confirm"
+            ? "▶ ACTIVATE OPERATOR"
+            : mode === "new-key"
+              ? "▶ SET NEW ACCESS KEY"
+              : "▶ INITIATE HANDSHAKE";
 
   const title =
     mode === "forgot-email" || mode === "otp" || mode === "new-key"
       ? "◢ KEY RECOVERY PROTOCOL ◣"
-      : "◢ IDENTITY VERIFICATION REQUIRED ◣";
+      : mode === "confirm"
+        ? "◢ OPERATOR ACTIVATION ◣"
+        : "◢ IDENTITY VERIFICATION REQUIRED ◣";
 
 
   return (
@@ -199,7 +214,7 @@ export function JarvisLogin() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tony@stark.industries"
                   className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-mut[...]"
-                  disabled={loading || mode === "otp"}
+                  disabled={loading || mode === "otp" || mode === "confirm"}
                 />
               </div>
             )}
@@ -249,7 +264,7 @@ export function JarvisLogin() {
               </div>
             )}
 
-            {mode === "otp" && (
+            {(mode === "otp" || mode === "confirm") && (
               <div>
                 <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
                   ACCESS CODE
@@ -304,7 +319,15 @@ export function JarvisLogin() {
                 />
               )}
             </button>
-            {mode === "forgot-email" || mode === "otp" || mode === "new-key" ? (
+            {mode === "confirm" ? (
+              <button
+                type="button"
+                onClick={() => { resetTransientState(); setOtp(""); setMode("signin"); }}
+                className="font-hud w-full text-center text-[10px] tracking-widest text-muted-foreground transition hover:text-[color:var(--jarvis-cyan)]"
+              >
+                ◂ RETURN TO HANDSHAKE
+              </button>
+            ) : mode === "forgot-email" || mode === "otp" || mode === "new-key" ? (
               <button
                 type="button"
                 onClick={() => { resetTransientState(); abortRecovery(); setOtp(""); setPassword(""); setConfirmPassword(""); setMode("signin"); }}
