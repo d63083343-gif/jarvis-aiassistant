@@ -67,25 +67,18 @@ export function JarvisLogin() {
       } else if (mode === "new-key") {
         if (password.length < 6) throw new Error("Access key must be at least 6 characters.");
         if (password !== confirmPassword) throw new Error("Access keys do not match.");
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          throw new Error("Recovery session expired. Request a new access code.");
+        }
+        // Update the password using the verified recovery session (no sign-out, no re-login).
         const { error: err } = await supabase.auth.updateUser({ password });
         if (err) throw err;
-        const targetEmail = email.trim();
-        // Re-authenticate with the new key so we know it was actually saved.
-        await supabase.auth.signOut();
-        const { error: sErr } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
-          password,
-        });
         try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
-        if (sErr) {
-          setMode("signin");
-          setPassword("");
-          setConfirmPassword("");
-          setInfo("ACCESS KEY UPDATED. SIGN IN WITH YOUR NEW KEY.");
-        } else {
-          setInfo("ACCESS KEY UPDATED. WELCOME BACK, SIR.");
-          window.location.reload();
-        }
+        setInfo("ACCESS KEY UPDATED. WELCOME BACK, SIR.");
+        // Nudge the auth listener so the app picks up the now-active session.
+        await supabase.auth.refreshSession();
+
       } else if (mode === "signup") {
         if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
         const { error: err } = await supabase.auth.signUp({
