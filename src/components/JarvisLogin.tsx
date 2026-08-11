@@ -264,7 +264,7 @@ export function JarvisLogin() {
               </div>
             )}
 
-            {mode === "otp" && (
+            {(mode === "otp" || mode === "confirm") && (
               <div>
                 <label className="font-hud mb-1 block text-[10px] tracking-widest text-[color:var(--jarvis-cyan)]">
                   ACCESS CODE
