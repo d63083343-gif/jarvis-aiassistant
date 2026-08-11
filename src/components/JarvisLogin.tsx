@@ -129,14 +129,18 @@ export function JarvisLogin() {
         ? "▶ SEND ACCESS CODE"
         : mode === "otp"
           ? "▶ VERIFY CODE"
-          : mode === "new-key"
-            ? "▶ SET NEW ACCESS KEY"
-            : "▶ INITIATE HANDSHAKE";
+          : mode === "confirm"
+            ? "▶ ACTIVATE OPERATOR"
+            : mode === "new-key"
+              ? "▶ SET NEW ACCESS KEY"
+              : "▶ INITIATE HANDSHAKE";
 
   const title =
     mode === "forgot-email" || mode === "otp" || mode === "new-key"
       ? "◢ KEY RECOVERY PROTOCOL ◣"
-      : "◢ IDENTITY VERIFICATION REQUIRED ◣";
+      : mode === "confirm"
+        ? "◢ OPERATOR ACTIVATION ◣"
+        : "◢ IDENTITY VERIFICATION REQUIRED ◣";
 
 
   return (
