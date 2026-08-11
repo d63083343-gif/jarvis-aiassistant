@@ -79,22 +79,33 @@ export function JarvisLogin() {
         // Nudge the auth listener so the app picks up the now-active session.
         await supabase.auth.refreshSession();
 
-      } else if (mode === "signup") {
-        if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
-        const { error: err } = await supabase.auth.signUp({
+      } else if (mode === "confirm") {
+        const code = otp.replace(/\D/g, "");
+        if (code.length < 6) throw new Error("Enter the access code from your e-mail.");
+        const { data, error: err } = await supabase.auth.verifyOtp({
           email: email.trim(),
-          password,
-          options: { emailRedirectTo: window.location.origin },
+          token: code,
+          type: "signup",
         });
         if (err) throw err;
-        // Auto-confirm is enabled → try immediate sign-in for a smooth handshake.
-        const { error: sErr } = await supabase.auth.signInWithPassword({
+        if (!data.session) throw new Error("Verification failed. Request a new code.");
+        setInfo("OPERATOR VERIFIED. WELCOME, SIR.");
+      } else if (mode === "signup") {
+        if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
+        const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           password,
         });
-        if (sErr) {
-          setInfo("Operator registered. Sign in with your new credentials.");
+        if (err) throw err;
+        if (data.session) {
+          // Confirmation disabled → already signed in.
+          setInfo("OPERATOR REGISTERED. WELCOME, SIR.");
+        } else {
+          setOtp("");
+          setMode("confirm");
+          setInfo("AN ACCESS CODE WAS TRANSMITTED TO YOUR E-MAIL. ENTER IT TO ACTIVATE.");
         }
+
       } else {
         if (!email.trim() || !password.trim()) throw new Error("Credentials required.");
         const { error: err } = await supabase.auth.signInWithPassword({
