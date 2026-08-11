@@ -214,7 +214,7 @@ export function JarvisLogin() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tony@stark.industries"
                   className="font-hud w-full rounded-md border border-[color:var(--jarvis-cyan)]/40 bg-background/60 px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-mut[...]"
-                  disabled={loading || mode === "otp"}
+                  disabled={loading || mode === "otp" || mode === "confirm"}
                 />
               </div>
             )}
