@@ -110,6 +110,7 @@ export function isModelAccessDenied(text: string): boolean {
   return MODEL_ACCESS_DENIED_PATTERNS.some((p) => p.test(text ?? ""));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function safeJson(text: string): Record<string, any> | undefined {
   try {
     const v = JSON.parse(text);
@@ -125,6 +126,7 @@ const LEGIT_EMPTY_CLAUDE_STOP = new Set(["max_tokens", "tool_use"]);
 
 export function isEmptyContentResponse(responseBody: unknown): boolean {
   if (!responseBody || typeof responseBody !== "object") return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body = responseBody as Record<string, any>;
 
   if (Array.isArray(body.choices)) {

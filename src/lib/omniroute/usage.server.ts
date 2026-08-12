@@ -18,6 +18,7 @@ export type Usage = {
 
 export function extractUsage(format: string, responseBody: unknown): Usage | null {
   if (!responseBody || typeof responseBody !== "object") return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body = responseBody as Record<string, any>;
   const usage = body.usage ?? body.usageMetadata ?? body.response?.usage;
   if (!usage || typeof usage !== "object") return null;
