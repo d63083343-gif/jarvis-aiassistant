@@ -137,17 +137,42 @@ function claudeBody(model: string, messages: ChatMessage[]): Record<string, unkn
   };
 }
 
+/**
+ * Delete params the model declares as unsupported — port of OmniRoute's
+ * open-sse/handlers/chatCore/unsupportedParamsStrip.ts. The registry's
+ * `unsupportedParams` is the authority (e.g. reasoning_effort on models that
+ * 400 on it), so a fallback model never receives a param it rejects.
+ */
+export function stripUnsupportedParams(
+  body: Record<string, unknown>,
+  unsupported: readonly string[],
+): { strippedParams: string[] } {
+  const strippedParams: string[] = [];
+  for (const param of unsupported) {
+    if (Object.hasOwn(body, param)) {
+      strippedParams.push(param);
+      delete body[param];
+    }
+  }
+  return { strippedParams };
+}
+
 export function buildRequest(
   provider: ProviderConfig,
   model: string,
   messages: ChatMessage[],
-): { url: string; init: RequestInit } {
+  options: { unsupportedParams?: readonly string[] } = {},
+): { url: string; init: RequestInit; strippedParams: string[] } {
   const body =
     provider.format === "gemini"
       ? geminiBody(messages)
       : provider.format === "claude"
         ? claudeBody(qualifiedModel(provider, model), messages)
         : openAiBody(provider, model, messages);
+  const { strippedParams } = stripUnsupportedParams(
+    body as Record<string, unknown>,
+    options.unsupportedParams ?? [],
+  );
   return {
     url: endpoint(provider, model),
     init: {
@@ -155,6 +180,7 @@ export function buildRequest(
       headers: authHeaders(provider),
       body: JSON.stringify(body),
     },
+    strippedParams,
   };
 }
 
