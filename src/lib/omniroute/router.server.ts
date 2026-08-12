@@ -20,8 +20,19 @@ import {
   recordSuccess,
 } from "./health.server";
 import { registerFallback, resolveFallbackChain } from "./fallbackPolicy";
-import { availableProviders, type ProviderConfig } from "./providers.server";
+import {
+  availableProviders,
+  markKeyFailure,
+  markKeySuccess,
+  nextApiKey,
+  type ProviderConfig,
+} from "./providers.server";
 import { buildRequest, extractContent } from "./formats.server";
+import { candidateModels, type ModelCandidate } from "./capabilities.server";
+import { classifyFailure, isEmptyContentResponse } from "./errorSignals.server";
+import { lockModel } from "./modelLockout.server";
+import { fitToContextWindow } from "./context.server";
+import { extractUsage, recordUsage, recordUsageFailure, type Usage } from "./usage.server";
 import type { ChatMessage, ContentBlock } from "./formats.server";
 
 export type { ChatMessage, ContentBlock };
@@ -43,6 +54,12 @@ export type RouteResult = {
   provider: string;
   model: string;
   latencyMs: number;
+  /** Provider-reported token usage, when the upstream returns it. */
+  usage?: Usage | null;
+  /** True when the context had to be trimmed to fit the model window. */
+  contextOptimized?: boolean;
+  /** Params removed because the model declares them unsupported. */
+  strippedParams?: string[];
   /** Providers that failed before this one succeeded. */
   attempts: Array<{ provider: string; status?: number; error: string }>;
 };
@@ -152,76 +169,139 @@ export async function routeChatCompletion(options: RouteOptions): Promise<RouteR
   const { primary, deferred } = ensureChain(routeKey);
   const chain = [...primary, ...deferred];
   const attempts: RouteResult["attempts"] = [];
+  const tier = options.tier ?? "text";
 
   if (chain.length === 0) {
     throw new OmniRouteError("No AI provider configured", 500, attempts);
   }
 
   const timeoutMs =
-    options.timeoutMs ?? (options.tier === "utility" ? UTILITY_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
+    options.timeoutMs ?? (tier === "utility" ? UTILITY_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
   let budgetLeftMs = RETRY_BUDGET_MS;
 
   for (const provider of chain) {
-    const model = pickModel(provider, options.tier);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const startedAt = Date.now();
-      const { signal, cleanup, timedOut } = combineSignals(options.signal, timeoutMs);
-      try {
-        const { url, init } = buildRequest(provider, model, options.messages);
-        const res = await fetch(url, {
-          ...init,
-          signal,
-        });
+    // Capability-aware candidates: vision requests only reach vision models,
+    // locked-out models are skipped, siblings act as in-provider fallbacks.
+    const models: ModelCandidate[] = candidateModels(provider, tier);
+    if (models.length === 0) {
+      attempts.push({ provider: provider.id, error: `no ${tier}-capable model available` });
+      continue;
+    }
 
-        if (res.ok) {
-          const content = extractContent(provider, await res.json());
-          const latencyMs = Date.now() - startedAt;
+    for (const model of models) {
+      // Context-window awareness: fit the conversation to this model's window.
+      let fitted = fitToContextWindow(options.messages, model.contextLength);
+      let nextProvider = false;
 
-          if (!content.trim()) {
-            // Empty completion: treat as a soft failure and try the next provider.
-            recordFailure(provider.id, { status: 200, error: "empty completion" });
-            attempts.push({ provider: provider.id, status: 200, error: "empty completion" });
+      for (let attempt = 0; attempt < 2 && !nextProvider; attempt++) {
+        const startedAt = Date.now();
+        const { signal, cleanup, timedOut } = combineSignals(options.signal, timeoutMs);
+        const apiKey = nextApiKey(provider);
+        const withKey: ProviderConfig = { ...provider, apiKey };
+        try {
+          const { url, init, strippedParams } = buildRequest(withKey, model.id, fitted.messages, {
+            unsupportedParams: model.unsupportedParams,
+          });
+          const res = await fetch(url, { ...init, signal });
+
+          if (res.ok) {
+            const payload = await res.json();
+            const content = extractContent(provider, payload);
+            const latencyMs = Date.now() - startedAt;
+
+            if (!content.trim() || isEmptyContentResponse(payload)) {
+              recordFailure(provider.id, { status: 200, error: "empty completion" });
+              recordUsageFailure(provider.id);
+              attempts.push({ provider: provider.id, status: 200, error: "empty completion" });
+              break; // try the next model on this provider
+            }
+
+            const usage = extractUsage(provider.format, payload);
+            markKeySuccess(provider, apiKey);
+            recordSuccess(provider.id, latencyMs);
+            recordUsage({
+              provider: provider.id,
+              model: model.id,
+              latencyMs,
+              usage,
+              contextOptimized: fitted.optimized,
+              strippedParams,
+            });
+            return {
+              content,
+              provider: provider.id,
+              model: model.id,
+              latencyMs,
+              usage,
+              contextOptimized: fitted.optimized,
+              strippedParams,
+              attempts,
+            };
+          }
+
+          const detail = (await res.text()).slice(0, 500);
+          const retryAfterMs = parseRetryAfterMs(res);
+          const verdict = classifyFailure(res.status, detail);
+
+          // Short Retry-After → wait and retry the same model (OmniRoute policy).
+          const wait = retryWaitMs(retryAfterMs, budgetLeftMs);
+          if (wait > 0 && attempt === 0) {
+            budgetLeftMs -= wait;
+            await sleep(wait);
+            continue;
+          }
+
+          // Context overflow → shrink harder and retry the same model once.
+          if (verdict.kind === "context_overflow" && attempt === 0) {
+            const tighter = Math.floor(((model.contextLength ?? 32_000) * 2) / 3);
+            fitted = fitToContextWindow(fitted.messages, tighter);
+            attempts.push({ provider: provider.id, status: res.status, error: detail });
+            continue;
+          }
+
+          recordUsageFailure(provider.id);
+          attempts.push({ provider: provider.id, status: res.status, error: detail });
+          console.warn(
+            `[omniroute] ${provider.id}/${model.id} failed (${res.status}, ${verdict.kind}); ${
+              verdict.scope === "model" ? "trying next model" : "falling back"
+            }. ${detail}`,
+          );
+
+          if (verdict.kind === "auth_error") markKeyFailure(provider, apiKey);
+
+          if (verdict.scope === "model") {
+            // Model-scoped: lock only this model, keep the provider healthy.
+            lockModel(provider.id, model.id, verdict.kind, verdict.cooldownMs);
             break;
           }
-          recordSuccess(provider.id, latencyMs);
-          return { content, provider: provider.id, model, latencyMs, attempts };
-        }
 
-        const detail = (await res.text()).slice(0, 500);
-        const retryAfterMs = parseRetryAfterMs(res);
-        const wait = retryWaitMs(retryAfterMs, budgetLeftMs);
-        if (wait > 0 && attempt === 0) {
-          budgetLeftMs -= wait;
-          await sleep(wait);
-          continue;
-        }
+          recordFailure(provider.id, { status: res.status, error: detail, retryAfterMs });
+          if (verdict.cooldownMs > 0) markCooldown(provider.id, verdict.cooldownMs);
+          else if (retryAfterMs > MAX_RETRY_WAIT_MS) markCooldown(provider.id, retryAfterMs);
 
-        recordFailure(provider.id, { status: res.status, error: detail, retryAfterMs });
-        if (retryAfterMs > MAX_RETRY_WAIT_MS) markCooldown(provider.id, retryAfterMs);
-        attempts.push({ provider: provider.id, status: res.status, error: detail });
-        console.warn(
-          `[omniroute] ${provider.id} failed (${res.status}); falling back. ${detail}`,
-        );
-        if (!shouldFallback(res.status)) {
-          throw new OmniRouteError(detail || res.statusText, res.status, attempts);
+          if (!verdict.fallback && !shouldFallback(res.status)) {
+            throw new OmniRouteError(detail || res.statusText, res.status, attempts);
+          }
+          nextProvider = true;
+        } catch (err) {
+          if (err instanceof OmniRouteError) throw err;
+          if (options.signal?.aborted) throw err;
+          const message = timedOut()
+            ? `timeout after ${timeoutMs}ms`
+            : err instanceof Error
+              ? err.message
+              : String(err);
+          recordFailure(provider.id, { error: message });
+          recordUsageFailure(provider.id);
+          attempts.push({ provider: provider.id, error: message });
+          console.warn(`[omniroute] ${provider.id} unavailable; falling back. ${message}`);
+          nextProvider = true;
+        } finally {
+          cleanup();
         }
-        break;
-      } catch (err) {
-        if (err instanceof OmniRouteError) throw err;
-        // Caller aborted (user cancelled) — propagate, never fall back.
-        if (options.signal?.aborted) throw err;
-        const message = timedOut()
-          ? `timeout after ${timeoutMs}ms`
-          : err instanceof Error
-            ? err.message
-            : String(err);
-        recordFailure(provider.id, { error: message });
-        attempts.push({ provider: provider.id, error: message });
-        console.warn(`[omniroute] ${provider.id} unavailable; falling back. ${message}`);
-        break;
-      } finally {
-        cleanup();
       }
+
+      if (nextProvider) break;
     }
   }
 
