@@ -20,6 +20,7 @@
 import {
   OMNIROUTE_REGISTRY,
   registryEntry,
+  type OmniModel,
   type OmniRegistryEntry,
 } from "./registry";
 
@@ -29,6 +30,8 @@ export type ProviderConfig = {
   format: OmniRegistryEntry["format"];
   baseUrl: string;
   apiKey: string;
+  /** All credentials for this provider, for OmniRoute-style key rotation. */
+  apiKeys: string[];
   authHeader: string;
   authPrefix?: string;
   headers?: Record<string, string>;
@@ -36,6 +39,9 @@ export type ProviderConfig = {
   urlSuffix?: string;
   modelIdPrefix?: string;
   timeoutMs?: number;
+  /** Catalog models with their declared capabilities. */
+  models: OmniModel[];
+  defaultContextLength?: number;
   /** Model used for text-only requests. */
   textModel: string;
   /** Model used when the conversation contains images. */
@@ -78,12 +84,32 @@ const LABELS: Record<string, string> = {
   "lovable-openai": "OpenAI (Lovable AI Gateway)",
 };
 
-function apiKeyFor(entry: OmniRegistryEntry): string {
-  if (entry.id.startsWith("lovable-")) return env("LOVABLE_API_KEY");
-  return (
-    env(`${envSuffix(entry.id)}_API_KEY`) ||
-    (entry.alias ? env(`${envSuffix(entry.alias)}_API_KEY`) : "")
-  );
+/**
+ * Credentials for a provider. OmniRoute supports several keys per provider and
+ * rotates between them (open-sse/services/apiKeyRotator.ts); the env-based
+ * equivalent here is <ID>_API_KEY plus optional <ID>_API_KEYS (csv) and
+ * numbered <ID>_API_KEY_2, _3, ...
+ */
+function apiKeysFor(entry: OmniRegistryEntry): string[] {
+  if (entry.id.startsWith("lovable-")) {
+    const k = env("LOVABLE_API_KEY");
+    return k ? [k] : [];
+  }
+  const ids = [envSuffix(entry.id), ...(entry.alias ? [envSuffix(entry.alias)] : [])];
+  const keys: string[] = [];
+  for (const id of ids) {
+    const primary = env(`${id}_API_KEY`);
+    if (primary) keys.push(primary);
+    for (const extra of env(`${id}_API_KEYS`).split(",")) {
+      const k = extra.trim();
+      if (k) keys.push(k);
+    }
+    for (let n = 2; n <= 5; n++) {
+      const k = env(`${id}_API_KEY_${n}`);
+      if (k) keys.push(k);
+    }
+  }
+  return [...new Set(keys)];
 }
 
 const UTILITY_HINT = /(lite|mini|flash|small|instant|8b|7b|nano|turbo|haiku)/i;
@@ -123,7 +149,8 @@ function pickModels(entry: OmniRegistryEntry) {
 
 
 function toConfig(entry: OmniRegistryEntry): ProviderConfig | null {
-  const apiKey = apiKeyFor(entry);
+  const apiKeys = apiKeysFor(entry);
+  const apiKey = apiKeys[0] ?? "";
   if (!apiKey) return null;
   const { text, vision, utility } = pickModels(entry);
   if (!text) return null;
@@ -133,6 +160,7 @@ function toConfig(entry: OmniRegistryEntry): ProviderConfig | null {
     format: entry.format,
     baseUrl: entry.baseUrl,
     apiKey,
+    apiKeys,
     authHeader: entry.authHeader,
     authPrefix: entry.authPrefix,
     headers: entry.headers,
@@ -140,6 +168,8 @@ function toConfig(entry: OmniRegistryEntry): ProviderConfig | null {
     urlSuffix: entry.urlSuffix,
     modelIdPrefix: entry.modelIdPrefix,
     timeoutMs: entry.timeoutMs,
+    models: entry.models,
+    defaultContextLength: entry.defaultContextLength,
     textModel: text,
     visionModel: vision,
     utilityModel: utility,
@@ -193,3 +223,39 @@ export function catalogStats() {
 }
 
 export { registryEntry };
+
+/**
+ * Round-robin key selection with per-key failure health, mirroring
+ * OmniRoute's apiKeyRotator: a key that fails authentication repeatedly is
+ * skipped until every key has been marked bad (then the set resets).
+ */
+const rotationIndex = new Map<string, number>();
+const badKeys = new Map<string, number>();
+
+const keyId = (provider: string, key: string) => `${provider}::${key.slice(-6)}`;
+
+export function nextApiKey(provider: ProviderConfig): string {
+  const keys = provider.apiKeys.length ? provider.apiKeys : [provider.apiKey];
+  const usable = keys.filter((k) => (badKeys.get(keyId(provider.id, k)) ?? 0) < 3);
+  const pool = usable.length ? usable : keys;
+  const i = (rotationIndex.get(provider.id) ?? 0) % pool.length;
+  rotationIndex.set(provider.id, i + 1);
+  return pool[i];
+}
+
+export function markKeyFailure(provider: ProviderConfig, key: string): void {
+  const id = keyId(provider.id, key);
+  badKeys.set(id, (badKeys.get(id) ?? 0) + 1);
+}
+
+export function markKeySuccess(provider: ProviderConfig, key: string): void {
+  badKeys.delete(keyId(provider.id, key));
+}
+
+export function keyRotationSnapshot() {
+  return availableProviders().map((p) => ({
+    provider: p.id,
+    keys: p.apiKeys.length,
+    unhealthyKeys: p.apiKeys.filter((k) => (badKeys.get(keyId(p.id, k)) ?? 0) >= 3).length,
+  }));
+}
