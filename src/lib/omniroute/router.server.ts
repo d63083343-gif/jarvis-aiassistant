@@ -114,11 +114,6 @@ function shouldFallback(status: number): boolean {
   );
 }
 
-function pickModel(provider: ProviderConfig, tier: RouteOptions["tier"]): string {
-  if (tier === "vision") return provider.visionModel;
-  if (tier === "utility") return provider.utilityModel;
-  return provider.textModel;
-}
 
 /**
  * Rebuild the chain from the current env-configured providers, then reorder so

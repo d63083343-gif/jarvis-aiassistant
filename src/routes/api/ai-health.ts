@@ -9,24 +9,42 @@ export const Route = createFileRoute("/api/ai-health")({
     handlers: {
       GET: async ({ request }) => {
         const probe = new URL(request.url).searchParams.get("probe") === "1";
-        const [{ healthSnapshot }, { checkProviders }, { availableProviders, catalogStats }] =
-          await Promise.all([
-            import("@/lib/omniroute/health.server"),
-            import("@/lib/omniroute/router.server"),
-            import("@/lib/omniroute/providers.server"),
-          ]);
+        const [
+          { healthSnapshot },
+          { checkProviders },
+          { availableProviders, catalogStats, keyRotationSnapshot },
+          { usageSnapshot },
+          { modelLockouts },
+        ] = await Promise.all([
+          import("@/lib/omniroute/health.server"),
+          import("@/lib/omniroute/router.server"),
+          import("@/lib/omniroute/providers.server"),
+          import("@/lib/omniroute/usage.server"),
+          import("@/lib/omniroute/modelLockout.server"),
+        ]);
 
         const configured = availableProviders().map((p) => ({
           id: p.id,
           label: p.label,
           format: p.format,
           textModel: p.textModel,
+          visionModel: p.visionModel,
+          utilityModel: p.utilityModel,
+          models: p.models.length,
         }));
         const probes = probe ? await checkProviders() : undefined;
 
         return new Response(
           JSON.stringify(
-            { catalog: catalogStats(), configured, health: healthSnapshot(), probes },
+            {
+              catalog: catalogStats(),
+              configured,
+              health: healthSnapshot(),
+              modelLockouts: modelLockouts(),
+              usage: usageSnapshot(),
+              keys: keyRotationSnapshot(),
+              probes,
+            },
             null,
             2,
           ),
