@@ -140,34 +140,34 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-/* Light JARVIS theme — bright HUD variant */
+/* Light AURA theme — luminous variant */
 .light {
-  --background: oklch(0.97 0.015 210);
-  --foreground: oklch(0.2 0.05 250);
-  --card: oklch(0.99 0.01 210);
-  --card-foreground: oklch(0.2 0.05 250);
-  --popover: oklch(0.99 0.01 210);
-  --popover-foreground: oklch(0.2 0.05 250);
-  --primary: oklch(0.55 0.16 235);
-  --primary-foreground: oklch(0.98 0.01 210);
-  --secondary: oklch(0.9 0.03 210);
-  --secondary-foreground: oklch(0.2 0.05 250);
-  --muted: oklch(0.92 0.02 210);
-  --muted-foreground: oklch(0.4 0.06 250);
-  --accent: oklch(0.75 0.15 75);
-  --accent-foreground: oklch(0.2 0.05 250);
-  --destructive: oklch(0.6 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.55 0.16 235 / 0.35);
-  --input: oklch(0.88 0.03 210);
-  --ring: oklch(0.55 0.16 235);
-  --jarvis-cyan: oklch(0.55 0.16 235);
-  --jarvis-cyan-deep: oklch(0.45 0.16 240);
-  --jarvis-gold: oklch(0.65 0.16 75);
-  --jarvis-red: oklch(0.6 0.22 25);
-  --gradient-hud: radial-gradient(ellipse at center, oklch(0.94 0.03 210) 0%, oklch(0.98 0.01 210) 70%);
-  --shadow-glow: 0 0 40px oklch(0.55 0.16 235 / 0.35), 0 0 80px oklch(0.55 0.16 235 / 0.2);
-  --shadow-glow-gold: 0 0 40px oklch(0.65 0.16 75 / 0.35);
+  --background: oklch(0.975 0.005 290);
+  --foreground: oklch(0.18 0.02 290);
+  --card: oklch(0.995 0.003 290);
+  --card-foreground: oklch(0.18 0.02 290);
+  --popover: oklch(0.995 0.003 290);
+  --popover-foreground: oklch(0.18 0.02 290);
+  --primary: oklch(0.5 0.22 292);
+  --primary-foreground: oklch(0.99 0.003 290);
+  --secondary: oklch(0.93 0.015 292);
+  --secondary-foreground: oklch(0.18 0.02 290);
+  --muted: oklch(0.94 0.01 292);
+  --muted-foreground: oklch(0.42 0.03 292);
+  --accent: oklch(0.55 0.2 288);
+  --accent-foreground: oklch(0.99 0.003 290);
+  --destructive: oklch(0.58 0.22 22);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.5 0.22 292 / 0.3);
+  --input: oklch(0.9 0.015 292);
+  --ring: oklch(0.5 0.22 292);
+  --jarvis-cyan: oklch(0.5 0.22 292);
+  --jarvis-cyan-deep: oklch(0.42 0.22 288);
+  --jarvis-gold: oklch(0.42 0.02 290);
+  --jarvis-red: oklch(0.58 0.22 22);
+  --gradient-hud: radial-gradient(ellipse 90% 60% at 50% 22%, oklch(0.9 0.06 292) 0%, oklch(0.985 0.004 290) 65%);
+  --shadow-glow: 0 0 40px oklch(0.5 0.22 292 / 0.3), 0 0 80px oklch(0.5 0.22 292 / 0.18);
+  --shadow-glow-gold: 0 0 40px oklch(0.5 0.02 290 / 0.25);
 }
 
 
