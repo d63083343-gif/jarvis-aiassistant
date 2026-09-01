@@ -182,23 +182,31 @@
     color: var(--color-foreground);
     background-image: var(--gradient-hud);
     background-attachment: fixed;
-    font-family: "Rajdhani", "Orbitron", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Inter", "Exo 2", ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
 }
 
 @utility text-glow {
-  text-shadow: 0 0 12px oklch(0.82 0.16 210 / 0.8), 0 0 32px oklch(0.55 0.16 235 / 0.5);
+  text-shadow: 0 0 14px oklch(0.62 0.22 292 / 0.75), 0 0 36px oklch(0.5 0.22 288 / 0.45);
 }
 
 @utility text-glow-gold {
-  text-shadow: 0 0 12px oklch(0.82 0.18 75 / 0.8);
+  text-shadow: 0 0 14px oklch(0.95 0.01 285 / 0.55);
 }
 
 @utility font-hud {
-  font-family: "Orbitron", "Rajdhani", ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.14em;
+  font-family: "Exo 2", "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* AURA wordmark — thin, wide-tracked */
+@utility font-aura {
+  font-family: "Exo 2", "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.42em;
   text-transform: uppercase;
 }
 
