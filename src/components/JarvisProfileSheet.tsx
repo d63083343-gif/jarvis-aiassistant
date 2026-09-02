@@ -198,7 +198,7 @@ export function JarvisProfileSheet({
                   </div>
                 ))}
                 <a
-                  href="mailto:support@jarvis.app?subject=JARVIS%20Support"
+                  href="mailto:support@aura.app?subject=AURA%20Support"
                   className="flex items-center gap-3 rounded-2xl border border-[color:var(--jarvis-cyan)]/40 bg-[color:var(--jarvis-cyan)]/10 px-4 py-3.5 text-sm text-[color:var(--jarvis-cyan)] transition hover:bg-[color:var(--jarvis-cyan)]/20"
                 >
                   <Mail className="h-4 w-4" />

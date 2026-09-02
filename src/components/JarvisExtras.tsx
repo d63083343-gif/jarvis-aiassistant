@@ -626,7 +626,7 @@ function exportPdf(messages: ExportMsg[]) {
   y += 20;
 
   for (const m of messages) {
-    const label = m.role === "user" ? "You" : "JARVIS";
+    const label = m.role === "user" ? "You" : "AURA";
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(m.role === "user" ? 40 : 20, m.role === "user" ? 120 : 100, m.role === "user" ? 80 : 160);
@@ -660,7 +660,7 @@ function copyTranscript(messages: ExportMsg[]) {
   const text = messages
     .map(
       (m) =>
-        `${m.role === "user" ? "You" : "JARVIS"} [${new Date(m.ts).toLocaleTimeString()}]: ${m.content}`,
+        `${m.role === "user" ? "You" : "AURA"} [${new Date(m.ts).toLocaleTimeString()}]: ${m.content}`,
     )
     .join("\n\n");
   return navigator.clipboard.writeText(text);

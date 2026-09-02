@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { MonitorUp, X, ScanEye, Loader2, ImageUp } from "lucide-react";
 
 /**
- * Screen sharing — captures the user's screen/tab and lets JARVIS look at what
+ * Screen sharing — captures the user's screen/tab and lets AURA look at what
  * is on it, the way Gemini's "share screen" works.
  */
 export function JarvisScreenShare({
@@ -13,7 +13,7 @@ export function JarvisScreenShare({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Sends a captured frame (data URL) to JARVIS; resolves with the spoken reply. */
+  /** Sends a captured frame (data URL) to AURA; resolves with the spoken reply. */
   onFrame: (dataUrl: string) => Promise<string>;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -150,7 +150,7 @@ export function JarvisScreenShare({
           )}
           {!sharing && !shot && (
             <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              Start sharing to let JARVIS see your screen — or send a screenshot on mobile.
+              Start sharing to let AURA see your screen — or send a screenshot on mobile.
             </div>
           )}
         </div>
@@ -205,7 +205,7 @@ export function JarvisScreenShare({
                 ) : (
                   <ScanEye className="h-4 w-4" />
                 )}
-                Ask JARVIS about this screen
+                Ask AURA about this screen
               </button>
               <button
                 type="button"

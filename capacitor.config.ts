@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.jarvis.voiceassistant",
-  appName: "JARVIS AI",
+  appName: "AURA",
   webDir: "dist",
   server: {
     androidScheme: "https",

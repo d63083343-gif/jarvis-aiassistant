@@ -748,8 +748,8 @@ function JarvisPage() {
     }
   }, [addHistoryQuery, attachReplyToHistory]);
 
-  // Live Vision — send a camera frame to JARVIS and speak the observation.
-  // Screen share — JARVIS reads whatever is on the shared screen.
+  // Live Vision — send a camera frame to AURA and speak the observation.
+  // Screen share — AURA reads whatever is on the shared screen.
   const analyzeScreen = useCallback(async (dataUrl: string) => {
     const res = await fetch("/api/jarvis-chat", {
       method: "POST",
@@ -827,7 +827,7 @@ function JarvisPage() {
 
   // Free, offline fallback voice: the browser's built-in speech synthesis.
   // Used whenever the hosted TTS is unavailable (quota/credits/rate limits).
-  // ── Barge-in (talk over JARVIS) ────────────────────────────────────────
+  // ── Barge-in (talk over AURA) ────────────────────────────────────────
   // While a reply is being spoken we keep a light mic monitor running. When
   // the user starts talking, playback stops instantly and we go back to
   // listening — like interrupting a person mid-sentence.
@@ -1562,7 +1562,7 @@ function ModeSwitcher({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => voi
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Change JARVIS mode"
+          aria-label="Change AURA mode"
           className="font-hud group flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/10"
           style={{ color: current.color }}
         >
@@ -2214,7 +2214,7 @@ function SettingsMenu({
                 <div className="flex flex-col leading-tight">
                   <span className="text-sm text-foreground">Incognito mode</span>
                   <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
-                    JARVIS WON'T SAVE HISTORY
+                    AURA WON'T SAVE HISTORY
                   </span>
                 </div>
               </div>

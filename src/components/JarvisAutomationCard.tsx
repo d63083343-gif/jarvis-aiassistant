@@ -89,7 +89,7 @@ export function AutomationCard() {
 
       {!native && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Calls, app launching, WhatsApp and screen automation run through the native JARVIS
+          Calls, app launching, WhatsApp and screen automation run through the native AURA
           plugin. Install the Android build to enable them.
         </p>
       )}
