@@ -4,6 +4,7 @@ import { retrieveKnowledge } from "@/lib/rag.functions";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { JarvisOrb } from "@/components/JarvisOrb";
+import { AuraLogo, AuraWordmark } from "@/components/AuraMark";
 import { JarvisSplash } from "@/components/JarvisSplash";
 import { JarvisLogin } from "@/components/JarvisLogin";
 import { encodeWav } from "@/lib/wav";
@@ -26,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2, Search, User, LogOut, Settings as SettingsIcon, Send, X, Moon, Sun, EyeOff, Paperclip, Camera, Image as ImageIcon, FileText, AlertTriangle, Save, ChevronDown, Sparkles, Code2, Palette, AudioLines, Plus, ShieldCheck, Menu } from "lucide-react";
+import { Trash2, Search, User, LogOut, Settings as SettingsIcon, Send, X, Moon, Sun, EyeOff, Paperclip, Camera, Image as ImageIcon, FileText, AlertTriangle, Save, ChevronDown, Sparkles, Code2, Palette, AudioLines, Plus, ShieldCheck, Menu, Zap, Brain } from "lucide-react";
 import { JarvisSidebar } from "@/components/JarvisSidebar";
 import { JarvisProfileSheet } from "@/components/JarvisProfileSheet";
 import {
@@ -747,8 +748,8 @@ function JarvisPage() {
     }
   }, [addHistoryQuery, attachReplyToHistory]);
 
-  // Live Vision — send a camera frame to JARVIS and speak the observation.
-  // Screen share — JARVIS reads whatever is on the shared screen.
+  // Live Vision — send a camera frame to AURA and speak the observation.
+  // Screen share — AURA reads whatever is on the shared screen.
   const analyzeScreen = useCallback(async (dataUrl: string) => {
     const res = await fetch("/api/jarvis-chat", {
       method: "POST",
@@ -826,7 +827,7 @@ function JarvisPage() {
 
   // Free, offline fallback voice: the browser's built-in speech synthesis.
   // Used whenever the hosted TTS is unavailable (quota/credits/rate limits).
-  // ── Barge-in (talk over JARVIS) ────────────────────────────────────────
+  // ── Barge-in (talk over AURA) ────────────────────────────────────────
   // While a reply is being spoken we keep a light mic monitor running. When
   // the user starts talking, playback stops instantly and we go back to
   // listening — like interrupting a person mid-sentence.
@@ -1058,7 +1059,7 @@ function JarvisPage() {
           className="absolute left-0 right-0 h-24 animate-jarvis-scan"
           style={{
             background:
-              "linear-gradient(to bottom, transparent, oklch(0.82 0.16 210 / 0.12), transparent)",
+              "linear-gradient(to bottom, transparent, oklch(0.62 0.22 292 / 0.14), transparent)",
           }}
         />
       </div>
@@ -1073,23 +1074,19 @@ function JarvisPage() {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex min-w-0 items-center gap-2.5 pl-1">
-          <img
-            src="/jarvis-icon.png"
-            alt="JARVIS"
-            className="h-8 w-8 drop-shadow-[0_0_10px_var(--jarvis-cyan)]"
-          />
-          <div className="flex min-w-0 flex-col leading-tight">
-            <ModeSwitcher mode={mode} setMode={setMode} />
-            <span className="font-hud truncate text-[9px] text-[color:var(--jarvis-gold)] text-glow-gold">
-              OP: {user.name.toUpperCase()}
-            </span>
+        <div className="flex min-w-0 flex-1 flex-col items-center leading-tight">
+          <div className="flex items-center gap-2">
+            <AuraLogo size={26} />
+            <AuraWordmark size="text-base" />
           </div>
-          <div className="ml-1 h-2 w-2 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
+          <div className="mt-0.5 flex items-center gap-2">
+            <ModeSwitcher mode={mode} setMode={setMode} />
+            <span className="h-1.5 w-1.5 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)] shadow-[0_0_10px_var(--jarvis-cyan)]" />
+          </div>
         </div>
 
         {/* Right cluster: active persona + Live Vision */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/30 bg-card/50 px-3 py-1.5 backdrop-blur sm:flex">
             <span className="h-1.5 w-1.5 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)]" />
             <span className="font-hud text-[9px] tracking-[0.22em] text-[color:var(--jarvis-cyan)] text-glow">
@@ -1173,7 +1170,7 @@ function JarvisPage() {
         onClose={() => setWorkspaceView(null)}
         currentTranscript={{
           title: messages[0]?.content?.slice(0, 60) || "Chat",
-          text: messages.map((m) => `${m.role === "user" ? "You" : "JARVIS"}: ${m.content}`).join("\n\n"),
+          text: messages.map((m) => `${m.role === "user" ? "You" : "AURA"}: ${m.content}`).join("\n\n"),
         }}
         plugins={{ voiceReplies, autoListen: handsFree, stealth: incognito, imageGen }}
         setPlugins={(next: Plugins) => {
@@ -1212,12 +1209,6 @@ function JarvisPage() {
 
       {/* Main */}
       <main className="relative z-10 flex flex-col items-center px-5 pt-4 pb-40 sm:px-10">
-        <h1 className="font-hud text-center text-2xl font-bold text-glow sm:text-4xl">
-          Just A Rather Very Intelligent System
-        </h1>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          Bilingual voice interface — English & <span className="text-[color:var(--jarvis-gold)] text-glow-gold">తెలుగు</span>
-        </p>
 
         {showSettings && false && (
           <div className="mt-4 w-full max-w-md rounded-lg border border-[color:var(--jarvis-cyan)]/30 bg-card/60 p-4 backdrop-blur">
@@ -1283,7 +1274,7 @@ function JarvisPage() {
         )}
 
         {/* Orb stage */}
-        <div className="relative mt-6 aspect-square w-full max-w-[420px]">
+        <div className="relative mt-2 aspect-square w-full max-w-[420px]">
           {/* Rotating HUD rings behind canvas */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="absolute h-[95%] w-[95%] rounded-full border border-[color:var(--jarvis-cyan)]/30 animate-spin-slow" />
@@ -1311,8 +1302,35 @@ function JarvisPage() {
           {state === "thinking" && <SearchingOverlay />}
         </div>
 
+        {/* Greeting */}
+        <div className="-mt-2 flex flex-col items-center text-center">
+          <h1 className="bg-gradient-to-b from-[oklch(1_0_0)] to-[oklch(0.74_0.02_290)] bg-clip-text text-3xl font-light tracking-tight text-transparent sm:text-4xl">
+            Hi, {user.name.split(" ")[0]}
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">How can I help you today?</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Bilingual — English & <span className="text-[color:var(--jarvis-cyan)]">తెలుగు</span>
+          </p>
+        </div>
+
+        {/* Capability strip */}
+        <div className="mt-5 flex w-full max-w-md items-center justify-center gap-6">
+          {[
+            { icon: ShieldCheck, label: "Private" },
+            { icon: Zap, label: "Powerful" },
+            { icon: Brain, label: "Adaptive" },
+          ].map(({ icon: Icon, label }) => (
+            <div key={label} className="flex flex-col items-center gap-1.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/25 bg-card/50 text-[color:var(--jarvis-cyan)] backdrop-blur">
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="font-hud text-[9px] tracking-[0.2em] text-muted-foreground">{label}</span>
+            </div>
+          ))}
+        </div>
+
         {/* Status */}
-        <div className="mt-6 flex flex-col items-center gap-2">
+        <div className="mt-5 flex flex-col items-center gap-2">
           <div
             className={`font-hud text-sm ${
               state === "listening"
@@ -1367,16 +1385,16 @@ function JarvisPage() {
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/40 bg-card/60 px-3 py-2 backdrop-blur shadow-[0_0_18px_oklch(0.5_0.12_210/0.15)] focus-within:border-[color:var(--jarvis-cyan)] focus-within:shadow-[0_0_22px_oklch(0.5_0.12_210/0.35)] transition">
+          <div className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/35 bg-[oklch(0.1_0.03_292)]/80 px-3 py-2 backdrop-blur shadow-[0_0_26px_oklch(0.5_0.2_292/0.28)] focus-within:border-[color:var(--jarvis-cyan)] focus-within:shadow-[0_0_34px_oklch(0.55_0.22_292/0.45)] transition">
             <UploadMenu onImage={setPendingImage} disabled={busy} />
             <input
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder={pendingImage ? "Ask JARVIS about this image…" : "Type a message for JARVIS…"}
+              placeholder={pendingImage ? "Ask AURA about this image…" : "Message AURA…"}
               disabled={busy}
               className="font-hud flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
-              aria-label="Type a message for Jarvis"
+              aria-label="Message AURA"
             />
             <button
               type="submit"
@@ -1390,7 +1408,7 @@ function JarvisPage() {
               type="button"
               onClick={() => setLiveVoiceOpen(true)}
               aria-label="Open live voice mode"
-              className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[oklch(0.7_0.16_235)] to-[oklch(0.55_0.18_255)] text-white shadow-[0_0_18px_oklch(0.6_0.18_235/0.6)] transition hover:scale-105"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[oklch(0.6_0.2_268)] to-[oklch(0.52_0.24_305)] text-white shadow-[0_0_20px_oklch(0.55_0.22_292/0.7)] transition hover:scale-105"
             >
               <AudioLines className="h-4 w-4 animate-jarvis-pulse" />
             </button>
@@ -1406,7 +1424,7 @@ function JarvisPage() {
       <div className="pointer-events-none fixed bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[color:var(--jarvis-cyan-deep)]/25 to-transparent" />
       <div className="pointer-events-none fixed bottom-2 left-0 right-0 z-20 text-center">
         <span className="font-hud text-[9px] tracking-[0.3em] text-muted-foreground">
-          JARVIS • CREATED BY <span className="text-[color:var(--jarvis-gold)] text-glow-gold">CHINNU</span>
+          AURA • SECURE CHANNEL • CREATED BY <span className="text-[color:var(--jarvis-cyan)] text-glow">CHINNU</span>
         </span>
       </div>
 
@@ -1544,7 +1562,7 @@ function ModeSwitcher({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => voi
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Change JARVIS mode"
+          aria-label="Change AURA mode"
           className="font-hud group flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/10"
           style={{ color: current.color }}
         >
@@ -2196,7 +2214,7 @@ function SettingsMenu({
                 <div className="flex flex-col leading-tight">
                   <span className="text-sm text-foreground">Incognito mode</span>
                   <span className="font-hud text-[9px] tracking-widest text-muted-foreground">
-                    JARVIS WON'T SAVE HISTORY
+                    AURA WON'T SAVE HISTORY
                   </span>
                 </div>
               </div>

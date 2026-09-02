@@ -59,10 +59,10 @@ export function saveGeneratedImage(url: string, prompt: string) {
 }
 
 const TITLES: Record<WorkspaceView, { title: string; desc: string }> = {
-  images: { title: "Images", desc: "Every image JARVIS has generated for you." },
+  images: { title: "Images", desc: "Every image AURA has generated for you." },
   projects: { title: "Projects", desc: "Group related conversations into projects." },
   library: { title: "Library", desc: "Saved transcripts you can reopen any time." },
-  plugins: { title: "Plugins", desc: "Toggle JARVIS capabilities on or off." },
+  plugins: { title: "Plugins", desc: "Toggle AURA capabilities on or off." },
 };
 
 export function JarvisWorkspace({
@@ -146,7 +146,7 @@ export function JarvisWorkspace({
           {/* IMAGES */}
           {view === "images" &&
             (images.length === 0 ? (
-              <Empty text="No images yet. Ask JARVIS to generate one." />
+              <Empty text="No images yet. Ask AURA to generate one." />
             ) : (
               <div className="grid grid-cols-2 gap-3 pt-1">
                 {images.map((img) => (

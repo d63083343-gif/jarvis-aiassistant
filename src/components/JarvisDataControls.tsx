@@ -111,7 +111,7 @@ export function JarvisDataControls({
     {
       key: "memory",
       label: "Manage memory",
-      hint: "Clear everything JARVIS remembers about you",
+      hint: "Clear everything AURA remembers about you",
       Icon: Brain,
       action: "Clear",
       confirm: true,
@@ -189,7 +189,7 @@ export function JarvisDataControls({
             Data Controls
           </SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Manage what JARVIS keeps, exports and forgets.
+            Manage what AURA keeps, exports and forgets.
           </SheetDescription>
         </SheetHeader>
 

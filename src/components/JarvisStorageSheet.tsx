@@ -93,7 +93,7 @@ export function JarvisStorageSheet({
       }
       toast.success(
         indexed
-          ? `Uploaded. ${indexed} document${indexed > 1 ? "s" : ""} added to JARVIS knowledge.`
+          ? `Uploaded. ${indexed} document${indexed > 1 ? "s" : ""} added to AURA knowledge.`
           : "Uploaded to your cloud storage.",
       );
 

@@ -41,7 +41,7 @@ function Core({ state, level }: OrbProps) {
     mat.emissiveIntensity += (target - mat.emissiveIntensity) * 0.1;
   });
 
-  const color = state === "thinking" ? "#f5c451" : state === "speaking" ? "#7fe7ff" : "#4ec8ff";
+  const color = state === "thinking" ? "#e6e2f5" : state === "speaking" ? "#b48bff" : "#7c5cff";
 
   return (
     <group>
@@ -110,29 +110,29 @@ function OrbitRings() {
     <>
       <group ref={g1} rotation={[Math.PI / 2.4, 0, 0]}>
         <Ring args={[1.9, 1.94, 128]}>
-          <meshBasicMaterial color="#7fe7ff" side={THREE.DoubleSide} transparent opacity={0.7} />
+          <meshBasicMaterial color="#b48bff" side={THREE.DoubleSide} transparent opacity={0.7} />
         </Ring>
       </group>
       <group ref={g2} rotation={[0, Math.PI / 3, Math.PI / 6]}>
         <Ring args={[2.15, 2.17, 128]}>
-          <meshBasicMaterial color="#4ec8ff" side={THREE.DoubleSide} transparent opacity={0.55} />
+          <meshBasicMaterial color="#7c5cff" side={THREE.DoubleSide} transparent opacity={0.55} />
         </Ring>
       </group>
       <group ref={g3}>
         <Ring args={[2.5, 2.53, 128]}>
-          <meshBasicMaterial color="#f5c451" side={THREE.DoubleSide} transparent opacity={0.35} />
+          <meshBasicMaterial color="#e6e2f5" side={THREE.DoubleSide} transparent opacity={0.35} />
         </Ring>
       </group>
       {/* Torus halo */}
       <group ref={g4} rotation={[Math.PI / 3, Math.PI / 4, 0]}>
         <Torus args={[2.3, 0.012, 12, 200]}>
-          <meshBasicMaterial color="#7fe7ff" transparent opacity={0.55} />
+          <meshBasicMaterial color="#b48bff" transparent opacity={0.55} />
         </Torus>
       </group>
       {/* Tilted dash ring */}
       <group ref={g5} rotation={[Math.PI / 2, 0, Math.PI / 5]}>
         <Ring args={[2.75, 2.78, 96]}>
-          <meshBasicMaterial color="#f5c451" side={THREE.DoubleSide} transparent opacity={0.28} />
+          <meshBasicMaterial color="#e6e2f5" side={THREE.DoubleSide} transparent opacity={0.28} />
         </Ring>
       </group>
     </>
@@ -164,7 +164,7 @@ function Particles() {
   });
   return (
     <points ref={points} geometry={geometry}>
-      <pointsMaterial color="#7fe7ff" size={0.028} transparent opacity={0.85} sizeAttenuation />
+      <pointsMaterial color="#b48bff" size={0.028} transparent opacity={0.85} sizeAttenuation />
     </points>
   );
 }
@@ -174,8 +174,8 @@ export function JarvisOrb({ state, level }: OrbProps) {
     <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }} dpr={[1, 2]}>
       <color attach="background" args={["#00000000"]} />
       <ambientLight intensity={0.35} />
-      <pointLight position={[5, 5, 5]} intensity={1.2} color="#7fe7ff" />
-      <pointLight position={[-5, -3, -3]} intensity={0.9} color="#f5c451" />
+      <pointLight position={[5, 5, 5]} intensity={1.2} color="#b48bff" />
+      <pointLight position={[-5, -3, -3]} intensity={0.9} color="#e6e2f5" />
       <Stars radius={40} depth={30} count={800} factor={2} fade speed={0.6} />
       <Particles />
       <Core state={state} level={level} />
