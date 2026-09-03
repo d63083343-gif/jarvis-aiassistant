@@ -9,7 +9,7 @@ import { JarvisLogin } from "@/components/JarvisLogin";
 import { encodeWav } from "@/lib/wav";
 import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { startSearchingSfx, stopSearchingSfx } from "@/lib/digitalSfx";
+
 import {
   Sheet,
   SheetContent,
@@ -327,15 +327,6 @@ function JarvisPage() {
     supabase.auth.getSession().then(({ data }) => applySession(data.session));
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
-  // Start/stop searching sound effects with the "thinking" state.
-  useEffect(() => {
-    if (state === "thinking") {
-      startSearchingSfx();
-    } else {
-      stopSearchingSfx();
-    }
-    return () => stopSearchingSfx();
-  }, [state]);
 
   const voiceSpeedRef = useRef(voiceSpeed);
   const voicePitchRef = useRef(voicePitch);
@@ -1266,43 +1257,9 @@ function JarvisPage() {
           </div>
         )}
 
-        {/* Compact AURA core */}
-        <div className="relative mt-2 flex h-24 w-full items-center justify-center sm:h-28">
-          <button
-            type="button"
-            onClick={onTap}
-            disabled={busy}
-            aria-label={state === "listening" ? "Stop listening" : "Start listening"}
-            className="group relative z-10 flex h-24 w-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--jarvis-cyan)] disabled:cursor-wait sm:h-28"
-          >
-            <span
-              className={`relative flex h-16 w-16 items-center justify-center transition duration-200 ${
-                state === "listening"
-                  ? "drop-shadow-[0_0_24px_oklch(0.62_0.22_292/0.9)]"
-                  : state === "thinking"
-                    ? "animate-jarvis-pulse drop-shadow-[0_0_28px_oklch(0.72_0.02_285/0.65)]"
-                    : state === "speaking"
-                      ? "drop-shadow-[0_0_28px_oklch(0.62_0.22_292/0.9)]"
-                      : "drop-shadow-[0_0_18px_oklch(0.62_0.22_292/0.45)]"
-              }`}
-              style={{ transform: `scale(${1 + level * 0.12})` }}
-            >
-              <AuraLogo size={64} className="transition group-hover:brightness-125" />
-            </span>
-            <span className="flex h-3 items-center gap-1" aria-hidden="true">
-              {[0.45, 0.8, 1, 0.8, 0.45].map((weight, index) => (
-                <span
-                  key={index}
-                  className={`w-0.5 rounded-full bg-[color:var(--jarvis-cyan)] transition-all duration-100 ${
-                    state === "listening" || state === "speaking" ? "opacity-100" : "opacity-35"
-                  }`}
-                  style={{ height: `${4 + Math.max(level, state === "thinking" ? 0.35 : 0) * weight * 9}px` }}
-                />
-              ))}
-            </span>
-          </button>
-        </div>
 
+        {messages.length === 0 && (
+        <>
         {/* Greeting */}
         <div className="mt-5 flex flex-col items-center text-center sm:mt-7">
           <h1 className="bg-gradient-to-b from-[oklch(1_0_0)] to-[oklch(0.74_0.02_290)] bg-clip-text text-3xl font-light text-transparent sm:text-4xl">
@@ -1332,27 +1289,24 @@ function JarvisPage() {
           ))}
         </div>
 
-        {/* Status */}
-        <div className="mt-5 flex min-h-5 flex-col items-center gap-2">
-          <div
-            className={`font-hud text-sm ${
-              state === "listening"
-                ? "text-[color:var(--jarvis-cyan)] text-glow animate-jarvis-pulse"
-                : state === "thinking"
-                  ? "text-[color:var(--jarvis-gold)] text-glow-gold"
-                  : state === "speaking"
-                    ? "text-[color:var(--jarvis-cyan)] text-glow"
-                    : "text-muted-foreground"
-            }`}
-          >
-            {status}
+        </>
+        )}
+
+        {/* Inline status (chat style) */}
+        {(state !== "idle" || error) && (
+          <div className="mt-4 flex w-full max-w-2xl flex-col items-start gap-2">
+            {state !== "idle" && (
+              <div className="text-xs text-muted-foreground">
+                {state === "listening" ? "Listening…" : state === "thinking" ? "Thinking…" : "Speaking…"}
+              </div>
+            )}
+            {error && (
+              <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-1 text-xs text-[color:var(--jarvis-red)]">
+                {error}
+              </div>
+            )}
           </div>
-          {error && (
-            <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-1 text-xs text-[color:var(--jarvis-red)]">
-              {error}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Message composer */}
         <form
