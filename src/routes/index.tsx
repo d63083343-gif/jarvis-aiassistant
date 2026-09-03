@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { retrieveKnowledge } from "@/lib/rag.functions";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { JarvisOrb } from "@/components/JarvisOrb";
 import { AuraLogo, AuraWordmark } from "@/components/AuraMark";
 import { JarvisSplash } from "@/components/JarvisSplash";
 import { JarvisLogin } from "@/components/JarvisLogin";
@@ -1085,14 +1084,8 @@ function JarvisPage() {
           </div>
         </div>
 
-        {/* Right cluster: active persona + Live Vision */}
+        {/* Live Vision */}
         <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/30 bg-card/50 px-3 py-1.5 backdrop-blur sm:flex">
-            <span className="h-1.5 w-1.5 animate-jarvis-pulse rounded-full bg-[color:var(--jarvis-cyan)]" />
-            <span className="font-hud text-[9px] tracking-[0.22em] text-[color:var(--jarvis-cyan)] text-glow">
-              {resolvePersona(persona).label}
-            </span>
-          </div>
           <button
             type="button"
             onClick={() => setLiveVisionOpen(true)}
@@ -1208,7 +1201,7 @@ function JarvisPage() {
 
 
       {/* Main */}
-      <main className="relative z-10 flex flex-col items-center px-5 pt-4 pb-40 sm:px-10">
+      <main className="relative z-10 flex min-h-[calc(100dvh-68px)] flex-col items-center px-4 pb-36 pt-5 sm:px-10 sm:pt-8">
 
         {showSettings && false && (
           <div className="mt-4 w-full max-w-md rounded-lg border border-[color:var(--jarvis-cyan)]/30 bg-card/60 p-4 backdrop-blur">
@@ -1273,64 +1266,74 @@ function JarvisPage() {
           </div>
         )}
 
-        {/* Orb stage */}
-        <div className="relative mt-2 aspect-square w-full max-w-[420px]">
-          {/* Rotating HUD rings behind canvas */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="absolute h-[95%] w-[95%] rounded-full border border-[color:var(--jarvis-cyan)]/30 animate-spin-slow" />
-            <div className="absolute h-[80%] w-[80%] rounded-full border border-dashed border-[color:var(--jarvis-cyan)]/40 animate-spin-reverse" />
-            <div className="absolute h-[65%] w-[65%] rounded-full border border-[color:var(--jarvis-gold)]/25 animate-spin-slow" />
-            {/* corner brackets */}
-            {["top-0 left-0", "top-0 right-0 rotate-90", "bottom-0 right-0 rotate-180", "bottom-0 left-0 -rotate-90"].map((cls) => (
-              <div
-                key={cls}
-                className={`absolute h-8 w-8 border-l-2 border-t-2 border-[color:var(--jarvis-cyan)] ${cls}`}
-              />
-            ))}
-          </div>
-
+        {/* Compact AURA core */}
+        <div className="relative mt-2 flex h-24 w-full items-center justify-center sm:h-28">
           <button
             type="button"
             onClick={onTap}
             disabled={busy}
             aria-label={state === "listening" ? "Stop listening" : "Start listening"}
-            className="group absolute inset-0 z-10 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--jarvis-cyan)] disabled:cursor-wait"
+            className="group relative z-10 flex h-24 w-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--jarvis-cyan)] disabled:cursor-wait sm:h-28"
           >
-            <JarvisOrb state={state} level={level} />
+            <span
+              className={`relative flex h-16 w-16 items-center justify-center transition duration-200 ${
+                state === "listening"
+                  ? "drop-shadow-[0_0_24px_oklch(0.62_0.22_292/0.9)]"
+                  : state === "thinking"
+                    ? "animate-jarvis-pulse drop-shadow-[0_0_28px_oklch(0.72_0.02_285/0.65)]"
+                    : state === "speaking"
+                      ? "drop-shadow-[0_0_28px_oklch(0.62_0.22_292/0.9)]"
+                      : "drop-shadow-[0_0_18px_oklch(0.62_0.22_292/0.45)]"
+              }`}
+              style={{ transform: `scale(${1 + level * 0.12})` }}
+            >
+              <AuraLogo size={64} className="transition group-hover:brightness-125" />
+            </span>
+            <span className="flex h-3 items-center gap-1" aria-hidden="true">
+              {[0.45, 0.8, 1, 0.8, 0.45].map((weight, index) => (
+                <span
+                  key={index}
+                  className={`w-0.5 rounded-full bg-[color:var(--jarvis-cyan)] transition-all duration-100 ${
+                    state === "listening" || state === "speaking" ? "opacity-100" : "opacity-35"
+                  }`}
+                  style={{ height: `${4 + Math.max(level, state === "thinking" ? 0.35 : 0) * weight * 9}px` }}
+                />
+              ))}
+            </span>
           </button>
-          <WaveformRing level={level} active={state === "listening" || state === "speaking"} />
-          {state === "thinking" && <SearchingOverlay />}
         </div>
 
         {/* Greeting */}
-        <div className="-mt-2 flex flex-col items-center text-center">
-          <h1 className="bg-gradient-to-b from-[oklch(1_0_0)] to-[oklch(0.74_0.02_290)] bg-clip-text text-3xl font-light tracking-tight text-transparent sm:text-4xl">
+        <div className="mt-5 flex flex-col items-center text-center sm:mt-7">
+          <h1 className="bg-gradient-to-b from-[oklch(1_0_0)] to-[oklch(0.74_0.02_290)] bg-clip-text text-3xl font-light text-transparent sm:text-4xl">
             Hi, {user.name.split(" ")[0]}
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">How can I help you today?</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Bilingual — English & <span className="text-[color:var(--jarvis-cyan)]">తెలుగు</span>
-          </p>
+          <p className="mt-2 text-base text-muted-foreground">How can I help you today?</p>
         </div>
 
-        {/* Capability strip */}
-        <div className="mt-5 flex w-full max-w-md items-center justify-center gap-6">
+        {/* Quick prompts */}
+        <div className="mt-8 grid w-full max-w-2xl grid-cols-4 gap-2 sm:gap-4">
           {[
-            { icon: ShieldCheck, label: "Private" },
-            { icon: Zap, label: "Powerful" },
-            { icon: Brain, label: "Adaptive" },
-          ].map(({ icon: Icon, label }) => (
-            <div key={label} className="flex flex-col items-center gap-1.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--jarvis-cyan)]/25 bg-card/50 text-[color:var(--jarvis-cyan)] backdrop-blur">
-                <Icon className="h-4 w-4" />
-              </span>
-              <span className="font-hud text-[9px] tracking-[0.2em] text-muted-foreground">{label}</span>
-            </div>
+            { icon: Brain, label: "Explain quantum computing", prompt: "Explain quantum computing" },
+            { icon: Code2, label: "Write a Python script", prompt: "Write a Python script" },
+            { icon: Sparkles, label: "Give me study tips", prompt: "Give me study tips" },
+            { icon: Search, label: "Summarize this article", prompt: "Help me summarize an article" },
+          ].map(({ icon: Icon, label, prompt }) => (
+            <button
+              key={label}
+              type="button"
+              disabled={busy}
+              onClick={() => void sendUserMessage(prompt)}
+              className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border border-[color:var(--jarvis-cyan)]/20 bg-card/20 px-1.5 py-3 text-center text-muted-foreground backdrop-blur-sm transition hover:border-[color:var(--jarvis-cyan)]/55 hover:bg-[color:var(--jarvis-cyan)]/10 hover:text-foreground disabled:opacity-40 sm:min-h-28 sm:px-3"
+            >
+              <Icon className="h-5 w-5 shrink-0 text-[color:var(--jarvis-cyan)]" />
+              <span className="text-[10px] leading-snug sm:text-xs">{label}</span>
+            </button>
           ))}
         </div>
 
         {/* Status */}
-        <div className="mt-5 flex flex-col items-center gap-2">
+        <div className="mt-5 flex min-h-5 flex-col items-center gap-2">
           <div
             className={`font-hud text-sm ${
               state === "listening"
@@ -1351,7 +1354,7 @@ function JarvisPage() {
           )}
         </div>
 
-        {/* Text input to Jarvis */}
+        {/* Message composer */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1363,7 +1366,7 @@ function JarvisPage() {
             setPendingImage(null);
             void sendUserMessage(t, img ?? undefined);
           }}
-          className="mt-8 w-full max-w-2xl"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+2.25rem)] left-4 right-4 z-30 mx-auto w-auto max-w-2xl sm:left-8 sm:right-8"
         >
           {pendingImage && (
             <div className="mb-2 flex items-center gap-3 rounded-lg border border-[color:var(--jarvis-cyan)]/40 bg-card/60 p-2 backdrop-blur">
@@ -1385,7 +1388,7 @@ function JarvisPage() {
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/35 bg-[oklch(0.1_0.03_292)]/80 px-3 py-2 backdrop-blur shadow-[0_0_26px_oklch(0.5_0.2_292/0.28)] focus-within:border-[color:var(--jarvis-cyan)] focus-within:shadow-[0_0_34px_oklch(0.55_0.22_292/0.45)] transition">
+          <div className="flex items-center gap-2 rounded-full border border-[color:var(--jarvis-cyan)]/35 bg-background/95 px-3 py-2.5 backdrop-blur-xl shadow-[0_0_26px_oklch(0.5_0.2_292/0.28)] focus-within:border-[color:var(--jarvis-cyan)] focus-within:shadow-[0_0_34px_oklch(0.55_0.22_292/0.45)] transition">
             <UploadMenu onImage={setPendingImage} disabled={busy} />
             <input
               type="text"
@@ -1416,7 +1419,7 @@ function JarvisPage() {
         </form>
 
         {/* Transcript panel */}
-        <TranscriptPanel messages={messages} onClear={() => setMessages([])} />
+        {messages.length > 0 && <TranscriptPanel messages={messages} onClear={() => setMessages([])} />}
 
       </main>
 
@@ -1567,7 +1570,7 @@ function ModeSwitcher({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => voi
           style={{ color: current.color }}
         >
           <CurrentIcon className="h-3 w-3" />
-          <span>J.A.R.V.I.S {mode !== "general" ? current.label : "• ONLINE"}</span>
+          <span>AURA {mode !== "general" ? current.label : "• ONLINE"}</span>
           <ChevronDown className="h-3 w-3 opacity-70 transition group-hover:opacity-100" />
         </button>
       </DropdownMenuTrigger>
@@ -1677,7 +1680,7 @@ function TranscriptPanel({ messages, onClear }: { messages: Msg[]; onClear: () =
                               : "text-[color:var(--jarvis-cyan)] text-glow"
                           }`}
                         >
-                          {isUser ? "YOU" : "J.A.R.V.I.S"}
+                          {isUser ? "YOU" : "AURA"}
                         </span>
                         <span className="font-hud text-[9px] text-muted-foreground">{time}</span>
                       </div>
