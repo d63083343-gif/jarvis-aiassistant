@@ -8,7 +8,15 @@ import { JarvisSplash } from "@/components/JarvisSplash";
 import { JarvisLogin } from "@/components/JarvisLogin";
 import { encodeWav } from "@/lib/wav";
 import { supabase } from "@/integrations/supabase/client";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import { toast } from "sonner";
 
 import {
   Sheet,
@@ -26,7 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2, Search, User, LogOut, Settings as SettingsIcon, Send, X, Moon, Sun, EyeOff, Paperclip, Camera, Image as ImageIcon, FileText, AlertTriangle, Save, ChevronDown, Sparkles, Code2, Palette, AudioLines, Plus, ShieldCheck, Menu, Zap, Brain } from "lucide-react";
+import { Trash2, Search, User, LogOut, Settings as SettingsIcon, Send, X, Moon, Sun, EyeOff, Paperclip, Camera, Image as ImageIcon, FileText, AlertTriangle, Save, ChevronDown, Sparkles, Code2, Palette, AudioLines, Plus, ShieldCheck, Menu, Zap, Brain, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, Volume2 } from "lucide-react";
 import { JarvisSidebar } from "@/components/JarvisSidebar";
 import { JarvisProfileSheet } from "@/components/JarvisProfileSheet";
 import {
@@ -72,6 +80,16 @@ import {
 
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "AURA — Intelligent Voice Assistant" },
+      { name: "description", content: "Chat naturally with AURA, your private intelligent voice assistant." },
+      { property: "og:title", content: "AURA — Intelligent Voice Assistant" },
+      { property: "og:description", content: "Chat naturally with AURA, your private intelligent voice assistant." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: JarvisPage,
 });
 
@@ -1292,19 +1310,12 @@ function JarvisPage() {
         </>
         )}
 
-        {/* Inline status (chat style) */}
-        {(state !== "idle" || error) && (
+        {/* Inline error */}
+        {error && (
           <div className="mt-4 flex w-full max-w-2xl flex-col items-start gap-2">
-            {state !== "idle" && (
-              <div className="text-xs text-muted-foreground">
-                {state === "listening" ? "Listening…" : state === "thinking" ? "Thinking…" : "Speaking…"}
-              </div>
-            )}
-            {error && (
-              <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-1 text-xs text-[color:var(--jarvis-red)]">
-                {error}
-              </div>
-            )}
+            <div className="rounded border border-[color:var(--jarvis-red)]/50 bg-[color:var(--jarvis-red)]/10 px-3 py-1 text-xs text-[color:var(--jarvis-red)]">
+              {error}
+            </div>
           </div>
         )}
 
@@ -1372,8 +1383,14 @@ function JarvisPage() {
           </div>
         </form>
 
-        {/* Transcript panel */}
-        {messages.length > 0 && <TranscriptPanel messages={messages} onClear={() => setMessages([])} />}
+        {/* Conversation */}
+        {messages.length > 0 && (
+          <ChatMessages
+            messages={messages}
+            thinking={state === "thinking"}
+            onSpeak={(text) => void speak(text)}
+          />
+        )}
 
       </main>
 
@@ -1568,94 +1585,102 @@ function ModeSwitcher({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => voi
 
 
 
-function TranscriptPanel({ messages, onClear }: { messages: Msg[]; onClear: () => void }) {
-
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLLIElement | null>(null);
+function ChatMessages({
+  messages,
+  thinking,
+  onSpeak,
+}: {
+  messages: Msg[];
+  thinking: boolean;
+  onSpeak: (text: string) => void;
+}) {
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [ratings, setRatings] = useState<Record<number, "up" | "down">>({});
   useEffect(() => {
-    // Scroll the newest message into view after layout settles
     const timer = window.setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, 50);
     return () => window.clearTimeout(timer);
-  }, [messages]);
+  }, [messages, thinking]);
+
+  const copyMessage = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied");
+    } catch {
+      toast.error("Unable to copy");
+    }
+  };
+
+  const shareMessage = async (text: string) => {
+    try {
+      if (navigator.share) await navigator.share({ title: "AURA response", text });
+      else {
+        await navigator.clipboard.writeText(text);
+        toast.success("Copied for sharing");
+      }
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      toast.error("Unable to share");
+    }
+  };
 
   return (
-    <div className="mt-10 w-full max-w-2xl">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="font-hud text-[10px] text-[color:var(--jarvis-cyan)] text-glow">
-          ◢ TRANSCRIPT LOG • SESSION {messages.length > 0 ? `[${messages.length}]` : "[0]"}
-        </div>
-        {messages.length > 0 && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="font-hud text-[10px] text-muted-foreground transition hover:text-[color:var(--jarvis-red)]"
-          >
-            CLEAR ▸
-          </button>
-        )}
-      </div>
-      <div className="relative rounded-lg border border-[color:var(--jarvis-cyan)]/30 bg-card/50 backdrop-blur">
-        <div className="pointer-events-none absolute inset-0 rounded-lg shadow-[inset_0_0_40px_oklch(0.5_0.12_210/0.15)]" />
-        <ScrollArea ref={scrollRef} className="h-[320px] p-4">
-          {messages.length === 0 ? (
-            <div className="flex h-[280px] items-center justify-center text-center text-xs text-muted-foreground">
-              <div>
-                <div className="font-hud text-[10px] text-[color:var(--jarvis-cyan)]/60">
-                  ▮ AWAITING INPUT ▮
-                </div>
-                <div className="mt-2">Your conversation will appear here.</div>
+    <div className="mt-8 w-full max-w-2xl space-y-8 pb-6" aria-label="Conversation">
+      {messages.map((message, index) => {
+        const isUser = message.role === "user";
+        return (
+          <Message key={`${message.ts}-${index}`} from={message.role} className={isUser ? "max-w-[88%]" : "max-w-full"}>
+            <div className={isUser ? "flex justify-end" : "flex items-start gap-3"}>
+              {!isUser && <AuraLogo size={40} className="mt-0.5 shrink-0 rounded-md" />}
+              <div className={isUser ? "max-w-full" : "min-w-0 flex-1"}>
+                <MessageContent className={isUser ? "rounded-[1.6rem] border border-border bg-secondary px-5 py-3 text-base leading-relaxed" : "w-full bg-transparent p-0 text-base leading-7"}>
+                  <MessageResponse>{message.content}</MessageResponse>
+                  {message.imageUrl && (
+                    <img src={message.imageUrl} alt="Conversation attachment" className="mt-3 max-h-80 w-auto max-w-full rounded-lg border border-border object-contain" />
+                  )}
+                </MessageContent>
+                {!isUser && (
+                  <MessageActions className="mt-3 gap-1 text-muted-foreground">
+                    <MessageAction tooltip="Copy" onClick={() => void copyMessage(message.content)}><Copy /></MessageAction>
+                    <MessageAction
+                      tooltip="Good response"
+                      aria-pressed={ratings[index] === "up"}
+                      className={ratings[index] === "up" ? "text-primary" : undefined}
+                      onClick={() => setRatings((current) => ({ ...current, [index]: "up" }))}
+                    ><ThumbsUp /></MessageAction>
+                    <MessageAction
+                      tooltip="Bad response"
+                      aria-pressed={ratings[index] === "down"}
+                      className={ratings[index] === "down" ? "text-destructive" : undefined}
+                      onClick={() => setRatings((current) => ({ ...current, [index]: "down" }))}
+                    ><ThumbsDown /></MessageAction>
+                    <MessageAction tooltip="Read aloud" onClick={() => onSpeak(message.content)}><Volume2 /></MessageAction>
+                    <MessageAction tooltip="Share" onClick={() => void shareMessage(message.content)}><Share2 /></MessageAction>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <MessageAction tooltip="More options"><MoreHorizontal /></MessageAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onSelect={() => void copyMessage(message.content)}>Copy response</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => onSpeak(message.content)}>Read aloud</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => void shareMessage(message.content)}>Share response</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </MessageActions>
+                )}
               </div>
             </div>
-          ) : (
-            <ul className="space-y-4">
-              {messages.map((m, i) => {
-                const isUser = m.role === "user";
-                const time = new Date(m.ts).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                });
-                return (
-                  <li key={i} ref={i === messages.length - 1 ? bottomRef : undefined} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[85%] rounded-md border px-3 py-2 text-sm ${
-                        isUser
-                          ? "border-[color:var(--jarvis-gold)]/40 bg-[color:var(--jarvis-gold)]/5"
-                          : "border-[color:var(--jarvis-cyan)]/40 bg-[color:var(--jarvis-cyan)]/5"
-                      }`}
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-3">
-                        <span
-                          className={`font-hud text-[10px] ${
-                            isUser
-                              ? "text-[color:var(--jarvis-gold)] text-glow-gold"
-                              : "text-[color:var(--jarvis-cyan)] text-glow"
-                          }`}
-                        >
-                          {isUser ? "YOU" : "AURA"}
-                        </span>
-                        <span className="font-hud text-[9px] text-muted-foreground">{time}</span>
-                      </div>
-                      <p className="whitespace-pre-wrap leading-relaxed text-foreground/90">
-                        {m.content}
-                      </p>
-                      {m.imageUrl && (
-                        <img
-                          src={m.imageUrl}
-                          alt={m.content}
-                          className="mt-2 w-full max-w-sm rounded-md border border-[color:var(--jarvis-cyan)]/30"
-                        />
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </ScrollArea>
-      </div>
+          </Message>
+        );
+      })}
+      {thinking && messages.at(-1)?.role === "user" && (
+        <div className="flex items-center gap-3" aria-live="polite">
+          <AuraLogo size={40} className="shrink-0 rounded-md" />
+          <Shimmer className="text-sm">Thinking…</Shimmer>
+        </div>
+      )}
+      <div ref={bottomRef} />
     </div>
   );
 }
