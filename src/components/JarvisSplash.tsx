@@ -1,58 +1,95 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import splashVideo from "@/assets/aura-splash-3.mp4.asset.json";
 
 interface JarvisSplashProps {
   onDone: () => void;
 }
 
-export function JarvisSplash({ onDone }: JarvisSplashProps) {
-  const [visible, setVisible] = useState(true);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const doneRef = useRef(false);
+// Singleton splash state — survives React StrictMode remounts and prevents
+// the 5-second intro from playing more than once per page load.
+let splashFinished = false;
+const finishListeners = new Set<() => void>();
 
-  const finish = () => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    setVisible(false);
-    setTimeout(onDone, 500);
-  };
+let splashContainer: HTMLDivElement | null = null;
+let splashVideoEl: HTMLVideoElement | null = null;
+let splashStarted = false;
 
-  // Force playback as soon as possible (muted autoplay is allowed everywhere).
-  useEffect(() => {
-    const v = videoRef.current;
-    if (v) {
-      v.play().catch(() => {
-        /* autoplay blocked — finish will still trigger via fallback */
-      });
-    }
-    // Fallback: never trap the user on the splash (video is ~5s).
-    const t = window.setTimeout(finish, 7000);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+function notifyFinished() {
+  if (splashFinished) return;
+  splashFinished = true;
+  finishListeners.forEach((fn) => fn());
+  finishListeners.clear();
 
-  if (!visible) {
-    return (
-      <div
-        className="pointer-events-none fixed inset-0 z-50 bg-black"
-        style={{ animation: "splash-fade-out 0.5s ease-out forwards" }}
-      />
-    );
+  if (splashContainer) {
+    splashContainer.style.opacity = "0";
+    window.setTimeout(() => {
+      splashContainer?.remove();
+      splashContainer = null;
+    }, 500);
+  }
+}
+
+function ensureSplashContainer() {
+  if (typeof document === "undefined") return;
+  if (!splashContainer) {
+    splashContainer = document.createElement("div");
+    splashContainer.className =
+      "fixed inset-0 z-[60] overflow-hidden bg-black transition-opacity duration-500";
+    splashContainer.style.opacity = "1";
+  }
+  if (!splashVideoEl) {
+    splashVideoEl = document.createElement("video");
+    splashVideoEl.src = splashVideo.url;
+    splashVideoEl.muted = true;
+    splashVideoEl.playsInline = true;
+    splashVideoEl.preload = "auto";
+    splashVideoEl.className = "pointer-events-none absolute inset-0 h-full w-full object-contain";
+    splashVideoEl.addEventListener("ended", notifyFinished, { once: true });
+    splashVideoEl.addEventListener("error", notifyFinished, { once: true });
+  }
+  if (!splashContainer.contains(splashVideoEl)) {
+    splashContainer.appendChild(splashVideoEl);
+  }
+  if (!document.body.contains(splashContainer)) {
+    document.body.appendChild(splashContainer);
   }
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black">
-      <video
-        ref={videoRef}
-        src={splashVideo.url}
-        autoPlay
-        muted
-        playsInline
-        preload="auto"
-        onEnded={finish}
-        onError={finish}
-        className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-      />
-    </div>
-  );
+  if (!splashStarted) {
+    splashStarted = true;
+    const play = () => {
+      splashVideoEl
+        ?.play()
+        .catch(() => {
+          /* muted autoplay should succeed; if not, the fallback timer still advances */
+        });
+    };
+    // Wait a tick so StrictMode's first-mount/unmount cycle doesn't cause a stutter.
+    window.setTimeout(play, 50);
+    // Hard cutoff: the asset is ~5s; if ended/error never fire, force onward.
+    window.setTimeout(notifyFinished, 6000);
+  }
+}
+
+export function JarvisSplash({ onDone }: JarvisSplashProps) {
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    if (splashFinished) {
+      onDoneRef.current();
+      return;
+    }
+
+    const listener = () => onDoneRef.current();
+    finishListeners.add(listener);
+    ensureSplashContainer();
+
+    return () => {
+      finishListeners.delete(listener);
+    };
+  }, []);
+
+  // The video is rendered via a single shared DOM element; this component
+  // only coordinates the "finished" signal with the parent route.
+  return null;
 }
