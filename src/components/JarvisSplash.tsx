@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import splashVideo from "@/assets/aura-splash-2.mp4.asset.json";
+import splashVideo from "@/assets/aura-splash-3.mp4.asset.json";
 
 interface JarvisSplashProps {
   onDone: () => void;
@@ -51,7 +51,7 @@ export function JarvisSplash({ onDone }: JarvisSplashProps) {
         preload="auto"
         onEnded={finish}
         onError={finish}
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        className="pointer-events-none absolute inset-0 h-full w-full object-contain"
       />
     </div>
   );
