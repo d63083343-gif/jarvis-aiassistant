@@ -378,6 +378,19 @@ function JarvisPage() {
     handsFreeRef.current = handsFree;
   }, [handsFree]);
 
+  // Spoken output is reserved for Live Voice / Live Vision. Typed chat on the
+  // home screen stays silent (text-only), like a normal chat app.
+  const liveModeRef = useRef(false);
+  useEffect(() => {
+    liveModeRef.current = liveVoiceOpen || liveVisionOpen;
+  }, [liveVoiceOpen, liveVisionOpen]);
+
+  // Guards against overlapping mic sessions, the main source of the
+  // "voice stops working after a while" behaviour.
+  const listeningRef = useRef(false);
+  const stoppingRef = useRef(false);
+
+
   // Voice-activity thresholds (tuned to ignore background noise)
   const SPEECH_THRESHOLD = 0.14;      // must exceed to count as voice
   const SPEECH_FRAMES_REQUIRED = 8;   // sustained frames of voice before "speaking"
@@ -442,12 +455,19 @@ function JarvisPage() {
   };
 
   const startListening = useCallback(async () => {
+    // A second session while one is already open leaves an orphaned mic
+    // stream behind and the assistant slowly stops responding.
+    if (listeningRef.current || stoppingRef.current) return;
+    listeningRef.current = true;
+    // Stop any barge-in monitor still holding the microphone.
+    bargeInRef.current?.();
     setError(null);
     speechDetectedRef.current = false;
     silenceStartRef.current = null;
     speechFramesRef.current = 0;
     speechStartRef.current = null;
     try {
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const AC: typeof AudioContext =
@@ -472,12 +492,16 @@ function JarvisPage() {
       setStatus("Listening… speak now");
       startMeter(analyser);
     } catch {
+      listeningRef.current = false;
       setError("Microphone access denied. Enable it in your browser.");
       setState("idle");
     }
   }, []);
 
   const stopListeningAndSend = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    listeningRef.current = false;
     stopMeter();
     const hadSpeech = speechDetectedRef.current;
     const speechDurationMs =
@@ -494,7 +518,9 @@ function JarvisPage() {
     streamRef.current = null;
     nodeRef.current = null;
     analyserRef.current = null;
+    stoppingRef.current = false;
     setLevel(0);
+
 
     // Reject sessions where no real voice was detected, or the voice was too short.
     if (!chunks.length || !hadSpeech || speechDurationMs < MIN_SPEECH_MS) {
@@ -841,6 +867,11 @@ function JarvisPage() {
   // listening — like interrupting a person mid-sentence.
   const bargeInRef = useRef<(() => void) | null>(null);
   const startBargeInMonitor = useCallback(async (onInterrupt: () => void) => {
+    // Only Live Voice mode may be interrupted; elsewhere it caused AURA to cut
+    // herself off on speaker bleed and room noise.
+    if (!liveModeRef.current || !handsFreeRef.current) return () => {};
+    if (listeningRef.current) return () => {};
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -857,6 +888,7 @@ function JarvisPage() {
       let frames = 0;
       let raf = 0;
       let stopped = false;
+      const startedAt = performance.now();
       const stop = () => {
         if (stopped) return;
         stopped = true;
@@ -873,10 +905,12 @@ function JarvisPage() {
           sum += v * v;
         }
         const lvl = Math.sqrt(sum / data.length) * 3;
-        // Higher threshold than normal VAD so speaker bleed doesn't trigger it.
-        if (lvl > 0.3) {
+        // Grace period + high threshold so AURA's own voice and room noise
+        // never cut her off mid-sentence.
+        const armed = performance.now() - startedAt > 1500;
+        if (armed && lvl > 0.5) {
           frames += 1;
-          if (frames >= 6) {
+          if (frames >= 16) {
             stop();
             onInterrupt();
             return;
@@ -886,6 +920,7 @@ function JarvisPage() {
         }
         raf = requestAnimationFrame(tick);
       };
+
       tick();
       bargeInRef.current = stop;
       return stop;
@@ -932,8 +967,12 @@ function JarvisPage() {
     });
 
 
-  const speak = async (text: string) => {
+  // `force` is for explicit user actions (Read aloud, voice preview).
+  // Otherwise AURA only speaks inside Live Voice / Live Vision.
+  const speak = async (text: string, force = false) => {
     if (!voiceRepliesRef.current) return;
+    if (!force && !liveModeRef.current) return;
+
     // Create the Audio element BEFORE the async fetch so mobile browsers
     // still associate playback with the recent user gesture.
     const audio = new Audio();
@@ -1266,7 +1305,9 @@ function JarvisPage() {
                     : voicePitch >= 2
                       ? "All systems nominal. Ready when you are, sir."
                       : "At your service, sir. How may I assist you today?",
+                  true,
                 )
+
               }
               className="font-hud mt-4 w-full rounded-md border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 py-2 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/20 disabled:opacity-40"
             >
@@ -1388,7 +1429,7 @@ function JarvisPage() {
           <ChatMessages
             messages={messages}
             thinking={state === "thinking"}
-            onSpeak={(text) => void speak(text)}
+            onSpeak={(text) => void speak(text, true)}
           />
         )}
 
