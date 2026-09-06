@@ -1427,7 +1427,7 @@ function JarvisPage() {
           <ChatMessages
             messages={messages}
             thinking={state === "thinking"}
-            onSpeak={(text) => void speak(text)}
+            onSpeak={(text) => void speak(text, true)}
           />
         )}
 
