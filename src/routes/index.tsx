@@ -455,12 +455,19 @@ function JarvisPage() {
   };
 
   const startListening = useCallback(async () => {
+    // A second session while one is already open leaves an orphaned mic
+    // stream behind and the assistant slowly stops responding.
+    if (listeningRef.current || stoppingRef.current) return;
+    listeningRef.current = true;
+    // Stop any barge-in monitor still holding the microphone.
+    bargeInRef.current?.();
     setError(null);
     speechDetectedRef.current = false;
     silenceStartRef.current = null;
     speechFramesRef.current = 0;
     speechStartRef.current = null;
     try {
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const AC: typeof AudioContext =
