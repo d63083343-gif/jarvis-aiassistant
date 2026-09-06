@@ -140,9 +140,9 @@ export function JarvisLogin() {
 
   const heading =
     mode === "signup"
-      ? "Create Operator"
+      ? "Create a New Account"
       : mode === "forgot-email"
-        ? "Key Recovery"
+        ? "Password Recovery"
         : mode === "otp"
           ? "Verify Code"
           : mode === "new-key"
@@ -222,7 +222,7 @@ export function JarvisLogin() {
             {(mode === "signin" || mode === "signup" || mode === "new-key") && (
               <div>
                 <label className="font-hud mb-2 block text-[10px] tracking-[0.22em] text-[color:var(--jarvis-cyan)]">
-                  {mode === "new-key" ? "New Password" : "Access Key"}
+                  {mode === "new-key" ? "New Password" : "Password"}
                 </label>
                 <div className={fieldWrap}>
                   <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -348,7 +348,7 @@ export function JarvisLogin() {
                 className="font-hud w-full rounded-xl border border-[color:var(--jarvis-cyan)]/40 py-3 text-[12px] tracking-[0.18em] text-foreground transition hover:bg-[color:var(--jarvis-cyan)]/10"
               >
                 {mode === "signin" ? (
-                  <>New Operator? <span className="text-[color:var(--jarvis-cyan)]">Register</span></>
+                  <>New here? <span className="text-[color:var(--jarvis-cyan)]">Register</span></>
                 ) : (
                   <>Have an ID? <span className="text-[color:var(--jarvis-cyan)]">Sign In</span></>
                 )}
