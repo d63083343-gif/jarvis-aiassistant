@@ -492,12 +492,16 @@ function JarvisPage() {
       setStatus("Listening… speak now");
       startMeter(analyser);
     } catch {
+      listeningRef.current = false;
       setError("Microphone access denied. Enable it in your browser.");
       setState("idle");
     }
   }, []);
 
   const stopListeningAndSend = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    listeningRef.current = false;
     stopMeter();
     const hadSpeech = speechDetectedRef.current;
     const speechDurationMs =
@@ -514,7 +518,9 @@ function JarvisPage() {
     streamRef.current = null;
     nodeRef.current = null;
     analyserRef.current = null;
+    stoppingRef.current = false;
     setLevel(0);
+
 
     // Reject sessions where no real voice was detected, or the voice was too short.
     if (!chunks.length || !hadSpeech || speechDurationMs < MIN_SPEECH_MS) {
