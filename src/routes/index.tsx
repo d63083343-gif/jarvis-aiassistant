@@ -867,6 +867,11 @@ function JarvisPage() {
   // listening — like interrupting a person mid-sentence.
   const bargeInRef = useRef<(() => void) | null>(null);
   const startBargeInMonitor = useCallback(async (onInterrupt: () => void) => {
+    // Only Live Voice mode may be interrupted; elsewhere it caused AURA to cut
+    // herself off on speaker bleed and room noise.
+    if (!liveModeRef.current || !handsFreeRef.current) return () => {};
+    if (listeningRef.current) return () => {};
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
