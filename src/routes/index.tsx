@@ -967,8 +967,12 @@ function JarvisPage() {
     });
 
 
-  const speak = async (text: string) => {
+  // `force` is for explicit user actions (Read aloud, voice preview).
+  // Otherwise AURA only speaks inside Live Voice / Live Vision.
+  const speak = async (text: string, force = false) => {
     if (!voiceRepliesRef.current) return;
+    if (!force && !liveModeRef.current) return;
+
     // Create the Audio element BEFORE the async fetch so mobile browsers
     // still associate playback with the recent user gesture.
     const audio = new Audio();
