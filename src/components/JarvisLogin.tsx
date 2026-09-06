@@ -46,7 +46,7 @@ export function JarvisLogin() {
     setLoading(true);
     try {
       if (mode === "forgot-email") {
-        if (!email.trim()) throw new Error("Enter your operator ID.");
+        if (!email.trim()) throw new Error("Enter your email ID.");
         const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim());
         if (err) throw err;
         // Keep the app on the login screen even once the recovery session exists.
@@ -66,10 +66,10 @@ export function JarvisLogin() {
         setPassword("");
         setConfirmPassword("");
         setMode("new-key");
-        setInfo("CODE VERIFIED. SET A NEW ACCESS KEY.");
+        setInfo("CODE VERIFIED. SET A NEW PASSWORD.");
       } else if (mode === "new-key") {
-        if (password.length < 6) throw new Error("Access key must be at least 6 characters.");
-        if (password !== confirmPassword) throw new Error("Access keys do not match.");
+        if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
           throw new Error("Recovery session expired. Request a new access code.");
@@ -78,7 +78,7 @@ export function JarvisLogin() {
         const { error: err } = await supabase.auth.updateUser({ password });
         if (err) throw err;
         try { sessionStorage.removeItem("jarvis.recovery"); } catch { /* noop */ }
-        setInfo("ACCESS KEY UPDATED. WELCOME BACK.");
+        setInfo("PASSWORD UPDATED. WELCOME BACK.");
         // Nudge the auth listener so the app picks up the now-active session.
         await supabase.auth.refreshSession();
 
@@ -127,7 +127,7 @@ export function JarvisLogin() {
   const submitLabel = loading
     ? "TRANSMITTING…"
     : mode === "signup"
-      ? "CREATE OPERATOR"
+      ? "CREATE A NEW ACCOUNT"
       : mode === "forgot-email"
         ? "SEND ACCESS CODE"
         : mode === "otp"
@@ -135,8 +135,8 @@ export function JarvisLogin() {
           : mode === "confirm"
             ? "ACTIVATE OPERATOR"
             : mode === "new-key"
-              ? "SET NEW ACCESS KEY"
-              : "INITIATE HANDSHAKE";
+              ? "SET NEW PASSWORD"
+              : "LOGIN";
 
   const heading =
     mode === "signup"
@@ -146,7 +146,7 @@ export function JarvisLogin() {
         : mode === "otp"
           ? "Verify Code"
           : mode === "new-key"
-            ? "New Access Key"
+            ? "New Password"
             : mode === "confirm"
               ? "Activate Operator"
               : "Welcome Back";
@@ -159,7 +159,7 @@ export function JarvisLogin() {
         : mode === "otp"
           ? "Enter the 8-digit access code"
           : mode === "new-key"
-            ? "Set and confirm your new access key"
+            ? "Set and confirm your new password"
             : mode === "confirm"
               ? "Enter the code sent to your e-mail"
               : "Secure login to continue";
@@ -201,7 +201,7 @@ export function JarvisLogin() {
             {mode !== "new-key" && (
               <div>
                 <label className="font-hud mb-2 block text-[10px] tracking-[0.22em] text-[color:var(--jarvis-cyan)]">
-                  Operator ID
+                  Email ID
                 </label>
                 <div className={fieldWrap}>
                   <User className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -222,7 +222,7 @@ export function JarvisLogin() {
             {(mode === "signin" || mode === "signup" || mode === "new-key") && (
               <div>
                 <label className="font-hud mb-2 block text-[10px] tracking-[0.22em] text-[color:var(--jarvis-cyan)]">
-                  {mode === "new-key" ? "New Access Key" : "Access Key"}
+                  {mode === "new-key" ? "New Password" : "Access Key"}
                 </label>
                 <div className={fieldWrap}>
                   <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -238,7 +238,7 @@ export function JarvisLogin() {
                   <button
                     type="button"
                     onClick={() => setShowKey((v) => !v)}
-                    aria-label={showKey ? "Hide access key" : "Show access key"}
+                    aria-label={showKey ? "Hide password" : "Show password"}
                     className="shrink-0 text-muted-foreground transition hover:text-[color:var(--jarvis-cyan)]"
                   >
                     {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -251,7 +251,7 @@ export function JarvisLogin() {
                       onClick={() => { resetTransientState(); setMode("forgot-email"); }}
                       className="text-xs text-[color:var(--jarvis-cyan)] transition hover:text-glow"
                     >
-                      Forgot Access Key?
+                      Forgot Password?
                     </button>
                   </div>
                 )}
@@ -261,7 +261,7 @@ export function JarvisLogin() {
             {mode === "new-key" && (
               <div>
                 <label className="font-hud mb-2 block text-[10px] tracking-[0.22em] text-[color:var(--jarvis-cyan)]">
-                  Confirm New Access Key
+                  Confirm New Password
                 </label>
                 <div className={fieldWrap}>
                   <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
