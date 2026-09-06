@@ -1305,7 +1305,9 @@ function JarvisPage() {
                     : voicePitch >= 2
                       ? "All systems nominal. Ready when you are, sir."
                       : "At your service, sir. How may I assist you today?",
+                  true,
                 )
+
               }
               className="font-hud mt-4 w-full rounded-md border border-[color:var(--jarvis-cyan)]/50 bg-[color:var(--jarvis-cyan)]/10 py-2 text-[11px] text-[color:var(--jarvis-cyan)] text-glow transition hover:bg-[color:var(--jarvis-cyan)]/20 disabled:opacity-40"
             >
