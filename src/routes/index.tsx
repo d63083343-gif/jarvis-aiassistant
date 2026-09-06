@@ -378,6 +378,19 @@ function JarvisPage() {
     handsFreeRef.current = handsFree;
   }, [handsFree]);
 
+  // Spoken output is reserved for Live Voice / Live Vision. Typed chat on the
+  // home screen stays silent (text-only), like a normal chat app.
+  const liveModeRef = useRef(false);
+  useEffect(() => {
+    liveModeRef.current = liveVoiceOpen || liveVisionOpen;
+  }, [liveVoiceOpen, liveVisionOpen]);
+
+  // Guards against overlapping mic sessions, the main source of the
+  // "voice stops working after a while" behaviour.
+  const listeningRef = useRef(false);
+  const stoppingRef = useRef(false);
+
+
   // Voice-activity thresholds (tuned to ignore background noise)
   const SPEECH_THRESHOLD = 0.14;      // must exceed to count as voice
   const SPEECH_FRAMES_REQUIRED = 8;   // sustained frames of voice before "speaking"
