@@ -888,6 +888,7 @@ function JarvisPage() {
       let frames = 0;
       let raf = 0;
       let stopped = false;
+      const startedAt = performance.now();
       const stop = () => {
         if (stopped) return;
         stopped = true;
@@ -904,10 +905,12 @@ function JarvisPage() {
           sum += v * v;
         }
         const lvl = Math.sqrt(sum / data.length) * 3;
-        // Higher threshold than normal VAD so speaker bleed doesn't trigger it.
-        if (lvl > 0.3) {
+        // Grace period + high threshold so AURA's own voice and room noise
+        // never cut her off mid-sentence.
+        const armed = performance.now() - startedAt > 1500;
+        if (armed && lvl > 0.5) {
           frames += 1;
-          if (frames >= 6) {
+          if (frames >= 16) {
             stop();
             onInterrupt();
             return;
@@ -917,6 +920,7 @@ function JarvisPage() {
         }
         raf = requestAnimationFrame(tick);
       };
+
       tick();
       bargeInRef.current = stop;
       return stop;
