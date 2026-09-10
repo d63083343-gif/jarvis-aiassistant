@@ -1,716 +1,992 @@
-# JARVIS — AI Voice Assistant
 
-JARVIS is a full-stack AI voice assistant built with React, TypeScript, TanStack Start, Supabase, Capacitor, and an OmniRoute-based multi-provider AI routing layer.
 
-The project is designed for conversational AI, voice interaction, image understanding/generation, persistent user memory, conversation history, file storage, web-grounded answers, configurable personas, and Android-native assistant capabilities.
+# AURA — Student-First AI Assistant
 
-> **Project status:** Active development  
-> **Primary frontend:** React + TypeScript + TanStack Start + Vite  
-> **Backend/data:** Supabase  
-> **Mobile:** Capacitor Android  
-> **AI routing:** OmniRoute-based provider routing and fallback
+AURA is a student-focused AI assistant platform designed to bring conversational AI, memory, knowledge retrieval, web-grounded assistance, voice interaction, multimodal capabilities, and a future custom-model development path into one system.
+
+The project is being developed as a modular, production-style AI platform that can evolve from an assistant prototype into a more independent and optimized AI system.
 
 ---
 
-## 🌐 Project Links
+## Project Status
 
-- **Live application:** https://jarvis-aiassistant.lovable.app
-- **Lovable project:** https://lovable.dev/projects/37523722-6521-438b-a8f9-bbec8f0be004
-- **Lovable:** https://lovable.dev
+**Status: Active development**
 
----
+AURA currently contains a full-stack assistant foundation with:
 
-## ✨ Features
-
-### 🤖 AI Conversation
-
-- Conversational AI assistant with a JARVIS-style personality
-- Text and voice interaction
-- General, developer, and creative conversation modes
-- Configurable assistant personas
-- Concise responses optimized for voice playback
-- Automatic language detection
-- Telugu/Tenglish input support with Telugu-script responses
-- Image-aware conversations using vision-capable models
-
-### 🎙️ Voice
-
-- Speech-to-text input
-- Text-to-speech responses
-- Configurable voice speed
-- Configurable voice pitch
-- Hands-free / automatic listening mode
-- Live voice interaction UI
-- Audio feedback and JARVIS boot/search sound effects
-
-### 👁️ Vision & Images
-
-- Image attachments in conversations
-- Image analysis through vision-capable AI providers
-- AI image generation
-- Generated-image gallery
-- Image download and deletion
-- Generated images can be persisted to user cloud storage
-
-### 🔎 Web Grounding
-
-JARVIS includes lightweight web-search grounding for requests that need fresh information.
-
-It can automatically recognize queries involving terms such as:
-
-- latest
-- current
-- today
-- news
-- weather
-- prices
-- scores
-- releases
-- updates
-- search / browse / look up requests
-
-Search results are injected into the AI context so the assistant can answer using recently retrieved information.
-
-### 🧠 Long-Term Memory
-
-Authenticated users can have persistent memories stored in Supabase.
-
-JARVIS can recognize explicit or useful personal facts such as:
-
-- "Remember that..."
-- "My name is..."
-- Preferences
-- Favorites
-- User-provided background information
-
-Memories are associated with the authenticated user and can be supplied to future conversations.
-
-### 💬 Conversations & History
-
+- AI conversation
+- Multi-provider AI routing and fallback
+- Gemini integration
+- Supabase authentication, database and storage
 - Persistent conversations
-- User/assistant message storage
-- Conversation titles generated automatically
-- Conversation history
-- Search/filtering of history
-- Chat deletion
-- Cloud-backed conversation storage
+- User memory
+- Knowledge retrieval / RAG foundation
+- Conditional web grounding
+- Voice input and output
+- Image understanding and image-generation routes
+- User file storage
+- Configurable assistant personas
+- Workspace functionality
+- Capacitor Android project
+- Dataset validation and preprocessing foundations
+- LoRA / QLoRA training configuration foundations
+- Training and inference verification tooling
 
-### 👤 Authentication & Profiles
+AURA's custom-model training and production-scale deployment are future engineering stages and are not represented as already completed.
 
-- Supabase authentication
-- User profiles
-- Display name
-- Avatar support
-- Persona selection
-- Per-user data isolation using Supabase Row Level Security
+---
 
-### 📁 Files & Storage
+# Vision
 
-- User file uploads
-- Image uploads
-- Cloud-backed file metadata
-- Signed file URLs
-- Generated-image persistence
-- File deletion
-- Personal storage/library interface
+AURA is intended to become a student-first AI platform that makes capable AI assistance more accessible and sustainable.
 
-### 🗂️ Workspace
+The long-term direction is:
 
-The JARVIS workspace contains:
+```text
+Student
+   │
+   ▼
+AURA Application
+   │
+   ▼
+AURA Core
+Context + Orchestration
+   │
+   ├───────────────┐
+   │               │
+   ▼               ▼
+AI Models       Tools + Data
+   │               │
+   │        ┌──────┼────────┐
+   │        │      │        │
+   │      Memory   RAG     Web
+   │
+   ▼
+Response
+   │
+   ▼
+Student
 
-- **Images** — generated-image collection
-- **Projects** — organize saved conversations
-- **Library** — saved transcripts
-- **Plugins** — enable/disable selected JARVIS capabilities
+The system is designed so that models and capabilities can evolve without requiring the entire application to be rebuilt.
 
-Workspace data that is intentionally local is stored through browser local storage, while account data and uploaded files use Supabase.
 
-### 🔐 Data Controls
+---
 
-The project includes user-facing data management functionality, including:
+Core Capabilities
 
-- Exporting account data
-- Managing memories
-- Managing conversations
-- Managing stored files
-- Deleting chat data
-- Account deletion support
+AI Conversation
 
-### 📱 Android
+AURA provides a conversational AI interface for:
+
+General questions
+
+Learning assistance
+
+Coding assistance
+
+Creative tasks
+
+Research support
+
+Multilingual conversations
+
+Context-aware responses
+
+Image-aware conversations
+
+
+The AI layer is separated from the application UI through server-side API routes and provider-routing logic.
+
+
+---
+
+AI Routing
+
+AURA uses an OmniRoute-based routing layer to manage AI providers.
+
+The routing architecture is designed to support:
+
+Primary provider selection
+
+Provider fallback
+
+Model capability selection
+
+Timeout handling
+
+Provider health tracking
+
+Model lockout handling
+
+Context fitting
+
+Error-aware fallback
+
+
+The intended primary direct AI provider is Gemini, while the existing routing architecture can use configured fallback providers when required.
+
+Provider credentials are kept server-side through environment variables.
+
+
+---
+
+Knowledge Retrieval / RAG
+
+AURA contains a retrieval-augmented generation foundation.
+
+The knowledge flow is:
+
+User Query
+    │
+    ▼
+Query Embedding
+    │
+    ▼
+Supabase Vector Search
+    │
+    ▼
+Relevant Knowledge
+    │
+    ▼
+AI Context
+    │
+    ▼
+AURA Response
+
+The RAG system is designed to retrieve relevant knowledge from the application's knowledge store when retrieval is required.
+
+It uses:
+
+Query embeddings
+
+Supabase vector search
+
+Knowledge chunks
+
+Top-K retrieval
+
+Server-side retrieval functions
+
+
+RAG is an extensible foundation and is not intended to be unnecessarily invoked for every ordinary conversation.
+
+
+---
+
+Web Grounding
+
+AURA includes conditional web grounding for requests where fresh or external information is required.
+
+Examples include requests involving:
+
+Current information
+
+Recent information
+
+Latest updates
+
+News
+
+Prices
+
+Scores
+
+Weather
+
+Releases
+
+Explicit search requests
+
+Browse / lookup requests
+
+
+The system determines when grounding is needed and can retrieve web results before generating the final response.
+
+
+---
+
+Voice Interaction
+
+AURA includes a voice interaction pipeline:
+
+Voice Input
+     │
+     ▼
+Speech-to-Text
+     │
+     ▼
+AURA Conversation
+     │
+     ▼
+Text-to-Speech
+     │
+     ▼
+Voice Output
+
+The application contains dedicated server routes for:
+
+Speech-to-text
+
+Text-to-speech
+
+
+Voice functionality is integrated into the existing assistant experience rather than being implemented as a separate application.
+
+
+---
+
+Vision & Images
+
+AURA supports multimodal interaction through:
+
+Image attachments
+
+Vision-capable AI requests
+
+Image analysis
+
+Image generation
+
+Generated-image persistence
+
+Image gallery functionality
+
+Image file management
+
+
+Image generation availability depends on the configured provider and current provider/account limits.
+
+
+---
+
+Memory
+
+AURA supports authenticated user memory through Supabase.
+
+The memory system is designed to allow useful user-provided information and preferences to be retained and used in future conversations.
+
+Memory is associated with the authenticated user and is protected by the application's user-data access model.
+
+
+---
+
+Conversations & History
+
+AURA supports persistent conversations including:
+
+Conversation creation
+
+Message storage
+
+Conversation history
+
+Conversation titles
+
+Conversation management
+
+Chat deletion
+
+Cloud-backed conversation data
+
+
+Conversation data is associated with authenticated users.
+
+
+---
+
+Authentication
+
+Authentication is implemented through Supabase Auth.
+
+The application includes:
+
+User authentication
+
+User profiles
+
+Persona configuration
+
+User-specific data
+
+User-scoped database access
+
+Row Level Security
+
+
+Private user data is intended to remain isolated between accounts.
+
+
+---
+
+Files & Storage
+
+AURA includes cloud-backed user storage functionality for:
+
+User files
+
+Image uploads
+
+Generated images
+
+File metadata
+
+Signed file URLs
+
+File deletion
+
+Personal storage/library functionality
+
+
+Supabase Storage is used as part of the backend storage layer.
+
+
+---
+
+Workspace
+
+The AURA workspace provides areas for managing assistant-related content and capabilities.
+
+The current application includes functionality around:
+
+Images
+
+Projects
+
+Library
+
+Plugins
+
+Conversations
+
+User data controls
+
+
+The exact behavior of individual workspace features depends on their current implementation and configuration.
+
+
+---
+
+Android
 
 The repository contains a Capacitor Android application.
 
-The Android project includes support for capabilities such as:
+AURA Web Application
+        │
+        ▼
+     Capacitor
+        │
+        ▼
+ Android Application
 
-- Microphone
-- Camera
-- Media access
-- Notifications
-- Vibration
-- Network access
-- Native JARVIS command handling
-- App launching
-- Contact lookup
-- Phone-related actions
-- Accessibility-based UI automation
+The Android project provides the foundation for native assistant capabilities and device integrations supported by the application.
 
-Native automation requires the relevant Android permissions/services to be enabled by the user.
+Native capabilities are kept separate from the main web application where possible.
+
 
 ---
 
-# 🧠 AI Provider Routing
+System Architecture
 
-JARVIS contains a server-side OmniRoute-based routing layer under:
+A simplified representation of the current architecture:
 
-```text
-src/lib/omniroute/
-```
-
-The routing layer provides:
-
-- Provider registry
-- Provider discovery from environment variables
-- Model selection
-- Text model selection
-- Vision model selection
-- Utility model selection
-- Provider priority ordering
-- Automatic fallback
-- Provider health tracking
-- Cooldown handling
-- Retry handling for short retry windows
-- Request timeouts
-- Provider diagnostics
-
-## Default Provider
-
-Gemini is configured as the preferred primary provider.
-
-The project also contains the Lovable AI Gateway as a built-in fallback.
-
-Additional providers from the OmniRoute catalog can become available when their corresponding API keys are configured.
-
-## Provider Configuration
-
-Provider credentials are read from environment variables.
-
-Examples:
-
-```text
-GEMINI_API_KEY
-GROQ_API_KEY
-OPENROUTER_API_KEY
-DEEPINFRA_API_KEY
-LOVABLE_API_KEY
-```
-
-The exact providers available depend on the provider registry and which credentials are configured.
-
-Provider order can be customized with:
-
-```text
-OMNIROUTE_PROVIDER_ORDER
-```
-
-Model overrides are supported through variables such as:
-
-```text
-OMNIROUTE_MODEL_<PROVIDER>
-OMNIROUTE_VISION_MODEL_<PROVIDER>
-OMNIROUTE_UTILITY_MODEL_<PROVIDER>
-```
-
-Never commit real API keys or secrets to source control.
-
----
-
-# 🏗️ Architecture
-
-```text
-                         ┌─────────────────────┐
-                         │      JARVIS UI      │
+┌─────────────────────┐
+                         │      AURA UI        │
                          │ React + TypeScript  │
                          └──────────┬──────────┘
                                     │
-                     ┌──────────────┴──────────────┐
-                     │                             │
-              Voice / Vision                 Chat / Workspace
-                     │                             │
-                     └──────────────┬──────────────┘
+                                    ▼
+                         ┌─────────────────────┐
+                         │   TanStack Start    │
+                         │    Server Routes    │
+                         └──────────┬──────────┘
                                     │
-                           TanStack Start API
-                                    │
-                 ┌──────────────────┴──────────────────┐
-                 │                                     │
-          JARVIS Chat API                         Utility APIs
-                 │                           ┌─────────┼─────────┐
-                 │                           │         │         │
-          OmniRoute Router                   STT       TTS     Images
-                 │
-       ┌─────────┼─────────┐
-       │         │         │
-    Gemini   Other      Lovable
-             Providers   Gateway
-       │         │         │
-       └─────────┴─────────┘
-                 │
-             AI Response
+                 ┌──────────────────┼──────────────────┐
+                 │                  │                  │
+                 ▼                  ▼                  ▼
+          ┌────────────┐     ┌────────────┐     ┌────────────┐
+          │ OmniRoute  │     │    RAG     │     │    Web     │
+          │ AI Routing │     │ Knowledge  │     │ Grounding  │
+          └─────┬──────┘     └─────┬──────┘     └─────┬──────┘
+                │                  │                  │
+                ▼                  ▼                  ▼
+          AI Providers        Supabase DB        Web Search
+                │
+                ▼
+          AI Response
+                │
+                ▼
+             AURA UI
 
-                 │
-                 ▼
-             Supabase
-       ┌─────────┼─────────────┐
-       │         │             │
-   Auth      Database       Storage
-       │         │             │
-    Profiles  Memories    User Files
-              Chats       Images
-              Messages
-```
 
 ---
 
-# 🧩 Main Project Structure
+Technology Stack
 
-```text
+Layer	Technology
+
+Frontend	React
+Language	TypeScript
+Framework	TanStack Start
+Build Tool	Vite
+Styling	Tailwind CSS
+UI Components	Radix UI
+Backend	TanStack Start Server Routes
+Database	Supabase PostgreSQL
+Authentication	Supabase Auth
+Storage	Supabase Storage
+AI Routing	OmniRoute
+Primary AI	Gemini
+Web Grounding	DuckDuckGo-based search
+Mobile	Capacitor / Android
+Validation	Zod
+Package Management	Bun
+
+
+
+---
+
+Repository Structure
+
 .
-├── android/                       # Capacitor Android project
+├── android/
+│   └── Capacitor Android project
 │
-├── public/                        # Static assets
+├── public/
+│   └── Static assets
 │
 ├── src/
 │   ├── components/
-│   │   ├── ui/                    # Reusable UI components
-│   │   ├── JarvisOrb.tsx
-│   │   ├── JarvisWorkspace.tsx
-│   │   ├── JarvisSidebar.tsx
-│   │   ├── JarvisLogin.tsx
-│   │   ├── JarvisProfileSheet.tsx
-│   │   ├── JarvisStorageSheet.tsx
-│   │   ├── JarvisDataControls.tsx
-│   │   ├── JarvisScreenShare.tsx
-│   │   └── ...
+│   │   ├── UI components
+│   │   └── AURA assistant components
 │   │
 │   ├── integrations/
-│   │   └── supabase/              # Supabase clients/auth integration
+│   │   └── supabase/
 │   │
 │   ├── lib/
-│   │   ├── omniroute/             # AI provider routing/fallback
-│   │   ├── jarvisCloud.ts         # User data, memories, chats, files
-│   │   ├── jarvisNative.ts        # Android/native commands
-│   │   ├── jarvisPersonas.ts      # Assistant personas
-│   │   ├── websearch.server.ts    # Web grounding
-│   │   ├── wav.ts                 # Audio/WAV helpers
-│   │   └── ...
+│   │   ├── omniroute/
+│   │   ├── RAG
+│   │   ├── web search
+│   │   ├── cloud data
+│   │   ├── personas
+│   │   ├── native functionality
+│   │   └── utilities
 │   │
 │   ├── routes/
-│   │   ├── index.tsx              # Main JARVIS application
+│   │   ├── index.tsx
 │   │   └── api/
-│   │       ├── jarvis-chat.ts     # Main AI chat endpoint
-│   │       ├── stt.ts             # Speech-to-text
-│   │       ├── tts.ts             # Text-to-speech
-│   │       ├── generate-image.ts  # Image generation
-│   │       ├── chat-title.ts      # AI conversation titles
-│   │       └── ai-health.ts       # Provider health diagnostics
+│   │       ├── jarvis-chat.ts
+│   │       ├── stt.ts
+│   │       ├── tts.ts
+│   │       ├── generate-image.ts
+│   │       ├── chat-title.ts
+│   │       └── ai-health.ts
 │   │
 │   ├── router.tsx
 │   ├── server.ts
 │   └── start.ts
 │
 ├── supabase/
-│   ├── migrations/                # Database and RLS migrations
+│   ├── migrations/
 │   └── config.toml
 │
 ├── package.json
-├── vite.config.*
-├── tsconfig.*
+├── bun.lock
+├── bunfig.toml
+├── tsconfig.json
+├── vite.config.ts
 ├── AGENTS.md
 └── README.md
-```
+
+> Some internal source filenames still use the historical Jarvis naming. This is an internal implementation detail; the product/project identity is AURA.
+
+
+
 
 ---
 
-# 🗄️ Supabase Data Model
+Data Layer
 
-The current migrations define the following main data structures:
+The Supabase backend provides the application's persistent data layer.
 
-### `profiles`
+The project contains structures for areas such as:
 
-Stores per-user profile information and selected persona.
+User profiles
 
-### `memories`
+Memories
 
-Stores long-term user memories.
+Conversations
 
-### `conversations`
+Messages
 
-Stores conversation metadata and titles.
+User files
 
-### `messages`
+Knowledge chunks
 
-Stores user and assistant messages.
+Storage
 
-### `user_files`
 
-Stores metadata for user-uploaded and generated files.
+Row Level Security is used to enforce user-scoped access where configured.
 
-### Storage
-
-The project uses user-scoped storage policies for:
-
-- `avatars`
-- `user-files`
-
-Row Level Security and storage policies restrict authenticated users to their own data.
 
 ---
 
-# 🔐 Security
+Security
 
-JARVIS is designed around user-scoped data access.
+AURA follows server-side secret handling principles.
 
-Important security practices:
+Important rules:
 
-- Keep API keys in environment variables.
-- Never expose private provider credentials in frontend code.
-- Never commit `.env` files containing secrets.
-- Use Supabase Row Level Security for user-owned records.
-- Keep privileged/service-role credentials server-side.
-- Use signed URLs for private stored files.
-- Keep native permissions limited to required capabilities.
-- Review production authentication and storage policies before deployment.
+API keys must remain in environment variables.
 
-> The repository archive may contain a `.env` file. Do not commit real secrets from that file to GitHub. Use a local/environment-secret configuration instead.
+Secrets must never be hard-coded into frontend code.
 
----
+Real .env secrets must never be committed to Git.
 
-# ⚙️ Requirements
+Supabase Row Level Security must remain enabled for protected user data.
 
-Before running JARVIS locally, install:
+Service-role credentials must remain server-side.
 
-- Node.js
-- npm
-- Git
+Private storage should use appropriate access controls and signed URLs.
 
-For Android development, also install the Android development toolchain required by Capacitor.
+Authentication boundaries should be verified before production deployment.
+
+
 
 ---
 
-# 🚀 Local Development
+AURA Model Forge
 
-## 1. Clone the repository
+AURA is also being developed toward a future custom-model capability.
 
-```bash
-git clone <your-repository-url>
-cd <repository-name>
-```
+The model-development lifecycle is:
 
-## 2. Install dependencies
+DATA
+  │
+  ▼
+VALIDATE
+  │
+  ▼
+CLEAN
+  │
+  ▼
+PREPROCESS
+  │
+  ▼
+DEDUPLICATE
+  │
+  ▼
+FORMAT
+  │
+  ▼
+SPLIT
+  │
+  ▼
+TRAIN / TUNE
+  │
+  ▼
+EVALUATE
+  │
+  ▼
+DEPLOY
 
-```bash
-npm install
-```
+The repository contains foundations for dataset preparation and training configuration.
 
-## 3. Configure environment variables
-
-Create the required environment configuration for your deployment.
-
-At minimum, the project may require credentials for:
-
-```text
-Supabase
-AI provider(s)
-Lovable AI Gateway
-```
-
-Use the environment variable names expected by the source code.
-
-## 4. Start development
-
-```bash
-npm run dev
-```
-
-Vite will display the local development URL.
-
----
-
-# 🏭 Production Build
-
-Build the application:
-
-```bash
-npm run build
-```
-
-Preview the production build:
-
-```bash
-npm run preview
-```
 
 ---
 
-# 🧹 Code Quality
+Dataset Engineering
 
-Lint the project:
+The dataset pipeline supports:
 
-```bash
-npm run lint
-```
+JSONL datasets
 
-Format the project:
+Schema validation
 
-```bash
-npm run format
-```
+Required-field validation
 
----
+Role validation
 
-# 📱 Android Development
+Message ordering validation
 
-The repository contains the Android project under:
+Tool-call linkage validation
 
-```text
-android/
-```
+Malformed JSON detection
 
-The web application uses Capacitor for native Android integration.
+Duplicate-ID detection
 
-Before creating a production Android build, verify:
+Duplicate-example detection
 
-1. Web assets are synchronized with the Android project.
-2. Required Android permissions are appropriate.
-3. Native JARVIS capabilities are tested on a real device.
-4. Accessibility-dependent automation is tested separately.
-5. Production API configuration is correctly supplied.
+Exact duplicate detection
 
----
+Near-duplicate detection
 
-# 🔌 API Endpoints
+Length filtering
 
-The application currently exposes server routes for major AI capabilities.
+System-prompt injection
 
-| Endpoint | Purpose |
-|---|---|
-| `/api/jarvis-chat` | Main AI conversation and routing |
-| `/api/stt` | Speech-to-text |
-| `/api/tts` | Text-to-speech |
-| `/api/generate-image` | AI image generation |
-| `/api/chat-title` | Automatic conversation titles |
-| `/api/ai-health` | AI provider diagnostics |
+Chat formatting
 
----
+ChatML-style rendering
 
-# 🔄 Request Flow
+Deterministic train/validation/test splitting
 
-A normal JARVIS chat request follows this general flow:
 
-```text
-User Input
-   ↓
-JARVIS UI
-   ↓
-/api/jarvis-chat
-   ↓
-Persona + Mode + Memory
-   ↓
-Optional Web Grounding
-   ↓
-OmniRoute
-   ↓
-Primary Provider
-   ↓
-Fallback Provider if required
-   ↓
-AI Response
-   ↓
-JARVIS UI
-   ↓
-Optional Text-to-Speech
-```
+The intended processing flow is:
 
-For image conversations, the router selects the vision tier and uses a provider/model capable of handling image input.
+RAW
+ │
+ ▼
+VALIDATE
+ │
+ ▼
+CLEAN
+ │
+ ▼
+PREPROCESS
+ │
+ ▼
+DEDUP
+ │
+ ▼
+FORMAT
+ │
+ ▼
+SPLIT
+ ├── train
+ ├── validation
+ └── test
+
+Synthetic and intentionally invalid fixtures used for testing are not represented as production training data.
+
 
 ---
 
-# 🌐 Web Search Flow
+Training Configuration
 
-When a request appears to require current information:
+The model-development foundation includes configuration support for:
 
-```text
-User Query
-    ↓
-Search Detection
-    ↓
-DuckDuckGo HTML Search
-    ↓
-Relevant Results
-    ↓
-Compact Grounding Context
-    ↓
-AI Provider
-    ↓
-JARVIS Response
-```
+LoRA
 
-The search layer is implemented in:
+QLoRA
 
-```text
-src/lib/websearch.server.ts
-```
+Optimizer settings
+
+Runtime settings
+
+Precision configuration
+
+Checkpoint configuration
+
+Reproducibility settings
+
+Dataset configuration
+
+
+Training configuration is separated from smoke-test configuration so that development tests do not accidentally launch a large production-model training job.
+
 
 ---
 
-# 🧠 Memory Flow
+Target Foundation Model
 
-```text
-User Message
-     ↓
-Memory Extraction
-     ↓
-Supabase `memories`
-     ↓
-Future Conversation
-     ↓
-Relevant Memories Added to AI Context
-```
+The current planned foundation model for the own-model direction is:
 
-Only authenticated user data should be associated with the signed-in user's account.
+Qwen/Qwen3-235B-A22B
+
+This repository does not claim that this model has already been trained as AURA.
+
+No trained AURA weights are included or claimed unless explicitly produced and verified by an actual training run.
+
+Large-model training requires appropriate compute, GPU memory, storage, software compatibility, and runtime infrastructure.
+
 
 ---
 
-# 🛡️ Lovable Integration
+Current Model Development Status
 
-This project was originally created and developed through Lovable.
+The current project has engineering foundations for:
 
-The repository is connected to Lovable, so commits pushed to the connected branch can synchronize back to the Lovable project.
+Dataset validation
 
-See `AGENTS.md` for the repository's Lovable-specific development guidance.
+Dataset preprocessing
 
-### Important
+Deduplication
 
-Do not rewrite published Git history through force-pushes, rebases, amended commits, or history-rewriting workflows when working with the Lovable-connected repository.
+Deterministic splitting
 
-Keep the connected branch in a working state.
+Chat formatting
 
----
+Training configuration
 
-# 🔧 Development Guidelines
+LoRA / QLoRA configuration
 
-When modifying JARVIS:
+Training smoke testing
 
-1. Preserve existing functionality.
-2. Avoid unnecessary UI/UX changes.
-3. Prefer small, modular changes.
-4. Keep AI provider logic server-side.
-5. Keep secrets in environment variables.
-6. Preserve Supabase RLS policies.
-7. Test both web and Android-specific functionality when relevant.
-8. Run the production build after significant changes.
-9. Do not remove existing features without understanding their dependencies.
-10. Keep provider routing and fallback behavior deterministic and observable.
-11. Avoid breaking the Lovable/Git synchronization workflow.
+Inference dry-run foundations
 
----
+Evaluation dry-run foundations
 
-# 🧪 Verification Checklist
 
-Before considering a major change complete, verify:
+The following remain dependent on actual execution and hardware:
 
-### Web
+Large-scale model training
 
-- [ ] `npm install` succeeds
-- [ ] `npm run build` succeeds
-- [ ] `npm run lint` succeeds
-- [ ] Authentication works
-- [ ] Chat works
-- [ ] Voice input works
-- [ ] Voice output works
-- [ ] Image attachment works
-- [ ] Image generation works
-- [ ] Conversation history works
-- [ ] Memory works
-- [ ] File storage works
-- [ ] Web grounding works
-- [ ] Provider fallback works
+Production fine-tuning
 
-### Android
+Model-quality benchmarking
 
-- [ ] App launches
-- [ ] Microphone permission works
-- [ ] Camera permission works
-- [ ] Notifications work where required
-- [ ] Native commands are handled correctly
-- [ ] Accessibility-dependent features behave correctly
-- [ ] Network requests work
-- [ ] No production secrets are bundled into the client
+Production inference benchmarking
 
-### Security
+Large-model deployment
 
-- [ ] No API keys committed
-- [ ] Supabase RLS enabled
-- [ ] Storage policies verified
-- [ ] Private files use appropriate access controls
-- [ ] Authentication boundaries tested
+Distributed/sharded training
+
+Production-scale serving
+
+
+No training result or benchmark should be considered valid unless it was actually executed and recorded.
+
 
 ---
 
-# 📌 Current Technology Stack
+Performance & Latency
 
-| Layer | Technology |
-|---|---|
-| UI | React 19 |
-| Language | TypeScript |
-| Framework | TanStack Start |
-| Build Tool | Vite |
-| Styling | Tailwind CSS |
-| UI Components | Radix UI |
-| Icons | Lucide React |
-| 3D/Visuals | Three.js / React Three Fiber |
-| Backend | TanStack Start server routes |
-| Database | Supabase PostgreSQL |
-| Authentication | Supabase Auth |
-| Storage | Supabase Storage |
-| AI Routing | OmniRoute-based routing layer |
-| AI Gateway | Lovable AI Gateway |
-| Web Grounding | DuckDuckGo HTML search |
-| Mobile | Capacitor 8 / Android |
-| Validation | Zod |
-| Charts | Recharts |
+AURA is being optimized for responsive interaction.
+
+Current engineering focus includes reducing unnecessary work in the conversational request path, particularly:
+
+Avoiding unnecessary knowledge retrieval for ordinary requests
+
+Avoiding unnecessary web searches
+
+Reducing sequential network operations where safe
+
+Improving perceived response latency
+
+Preserving OmniRoute fallback reliability
+
+
+Performance improvements should be measured with real runtime timings rather than estimated from source code alone.
+
 
 ---
 
-# 📊 Project Status
+Testing & Verification
 
-JARVIS is an actively developed AI assistant project.
+The project contains automated verification around the data and model-development foundations.
 
-The current repository contains:
+Important verification areas include:
 
-- Web application
-- Server-side AI routes
-- Multi-provider AI routing
-- Supabase integration
-- Persistent conversations
-- Long-term memory
-- File storage
-- Image generation
-- Web grounding
-- Voice input/output
-- Workspace features
-- Android/Capacitor integration
-- Native assistant command handling
+Dataset schema validation
+
+Invalid-data handling
+
+Duplicate detection
+
+Preprocessing
+
+Deterministic splitting
+
+Training configuration
+
+Training smoke tests
+
+Inference dry-runs
+
+Evaluation dry-runs
+
+
+For application changes, the following should be verified where applicable:
+
+Build
+Lint
+Type checking
+Authentication
+Chat
+Voice input
+Voice output
+Image handling
+Web grounding
+RAG
+Provider fallback
+Storage
+Android functionality
+
+A feature should not be described as fully verified unless it has actually been tested.
+
 
 ---
 
-# 📄 License
+Development Principles
 
-No explicit open-source license is currently defined by the project repository.
+AURA follows these engineering principles:
 
-If this project will be distributed publicly, add an appropriate `LICENSE` file and update this section.
+1. Preserve existing working functionality.
+
+
+2. Avoid unnecessary UI/UX redesign.
+
+
+3. Prefer minimal, focused changes.
+
+
+4. Do not duplicate existing systems.
+
+
+5. Keep AI provider logic server-side.
+
+
+6. Keep secrets in environment variables.
+
+
+7. Preserve Supabase security policies.
+
+
+8. Separate test fixtures from production data.
+
+
+9. Keep hardware-dependent operations separate from CPU-safe tests.
+
+
+10. Verify changes before claiming completion.
+
+
+11. Do not claim benchmarks without measured results.
+
+
+12. Do not claim model training without an actual training run.
+
+
+13. Avoid unrelated refactoring.
+
+
+14. Preserve deterministic provider routing and fallback behavior.
+
+
+
 
 ---
 
-## JARVIS
+Roadmap
 
-**An AI voice assistant built for conversation, memory, vision, voice, and intelligent provider routing.**
+Phase 1 — Assistant Foundation
+
+[x] Full-stack assistant foundation
+
+[x] Supabase integration
+
+[x] Authentication foundation
+
+[x] Conversation persistence
+
+[x] User memory foundation
+
+[x] File storage foundation
+
+[x] AI routing architecture
+
+[x] Web grounding foundation
+
+[x] Voice API foundation
+
+[x] Image capability foundation
+
+[x] Capacitor Android foundation
+
+
+Phase 2 — Model Development Foundation
+
+[x] Dataset schema validation
+
+[x] Invalid fixture testing
+
+[x] Duplicate detection
+
+[x] Dataset preprocessing
+
+[x] Deterministic dataset splitting
+
+[x] Chat formatting
+
+[x] LoRA / QLoRA configuration
+
+[x] Training smoke-test foundation
+
+[x] Inference/evaluation dry-run foundation
+
+
+Phase 3 — Optimization
+
+[ ] Complete latency optimization
+
+[ ] Runtime performance measurement
+
+[ ] Production preflight
+
+[ ] Hardware compatibility verification
+
+[ ] Storage and deployment planning
+
+[ ] Complete end-to-end verification
+
+
+Phase 4 — Custom Model
+
+[ ] Production dataset preparation
+
+[ ] Training infrastructure
+
+[ ] Fine-tuning
+
+[ ] Evaluation
+
+[ ] Benchmarking
+
+[ ] Model optimization
+
+[ ] AURA model integration
+
+
+Phase 5 — Production
+
+[ ] Production inference
+
+[ ] Scalable model serving
+
+[ ] Monitoring
+
+[ ] Reliability testing
+
+[ ] Security review
+
+[ ] Production deployment
+
+
+
+---
+
+Important Project Disclaimer
+
+AURA is an actively developed project.
+
+The existence of training configuration, dataset tooling, or model-development code does not mean that a custom AURA foundation model has already been trained.
+
+Similarly, future architecture diagrams represent planned evolution and should not be interpreted as proof that every future component is already deployed.
+
+Only features and results that have been actually implemented and verified should be considered completed.
+
+
+---
+
+License
+
+No explicit open-source license is currently defined for this repository.
+
+If AURA is publicly distributed, an appropriate license should be added before redistribution.
+
+
+---
+
+AURA
+
+A student-first AI platform evolving from an intelligent assistant toward an independent, evaluated, and scalable AI system.
